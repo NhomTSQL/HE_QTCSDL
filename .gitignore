@@ -1,0 +1,33 @@
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+
+# Local database files
+*.db
+
+# Keep SQL schema under version control
+/database/*
+!/database/*.sql
+!/database/*.md
+!/database/
+
+/database/
+
+*.pyc
+
+CLAUDE.md
+
+.vscode/settings.json
+
+test.*
