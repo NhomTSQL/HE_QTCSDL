@@ -51,3 +51,4 @@ Kết quả mong đợi:
 ```
 
 Flask nạp cấu hình từ `.env` tại thư mục gốc dự án. Có thể đặt `DATABASE_URL` trong `.env` rồi chạy `py backend/app.py`.
+
