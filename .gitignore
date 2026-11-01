@@ -15,6 +15,7 @@ node_modules/
 
 # Local database files
 *.db
+/backups/*.bak
 
 # Keep SQL scripts and database documentation under version control
 /database/*

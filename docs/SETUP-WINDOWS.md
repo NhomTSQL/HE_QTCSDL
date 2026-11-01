@@ -2,7 +2,9 @@
 
 Thực hiện lần lượt trên mỗi máy Windows 10/11. Mỗi máy chạy một SQL Server
 Developer trong Docker và một Flask API cục bộ; không dùng chung file `.env`
-hoặc mật khẩu giữa các máy. Mục tiêu kiểm thử trên mỗi máy:
+hoặc mật khẩu giữa các máy. Compose bật SQL Server Agent, giới hạn SQL Server
+ở 3072 MB trong container 4 GiB và mount thư mục `backups/` trên host tại
+`/var/opt/mssql/backups` trong container. Mục tiêu kiểm thử trên mỗi máy:
 `http://localhost:5000/health` trả HTTP 200 và
 `{"status":"healthy","database":"connected"}`.
 
@@ -75,7 +77,31 @@ docker compose up -d sqlserver
 docker compose ps
 ```
 
-Đợi trạng thái SQL Server là `healthy`. Kết nối bằng SSMS tới `localhost,1433`,
+Đợi trạng thái SQL Server là `healthy`. Healthcheck chỉ thành công khi SQL Server
+Agent cũng đang chạy. Docker Desktop cần được cấp đủ RAM cho container 4 GiB.
+
+Để kiểm tra Agent, giới hạn RAM, và backup mount cùng lúc, chạy:
+
+```powershell
+.\scripts\test-compose.ps1
+```
+
+Kịch bản tạo backup tạm database `master`, xác minh backup bằng
+`RESTORE VERIFYONLY`, xác nhận file xuất hiện trong `backups/` trên host, rồi
+xóa file kiểm thử. Kết quả mong đợi là ba dòng `PASS` cho Agent, memory limit
+4 GiB và bind mount backup. Có thể chạy lại script; mỗi lượt dùng tên backup
+tạm riêng. Để tạo backup giữ lại, dùng SSMS hoặc chạy T-SQL sau trên SQL Server:
+
+```sql
+BACKUP DATABASE [AR_IMMS]
+TO DISK = N'/var/opt/mssql/backups/AR_IMMS.bak'
+WITH INIT, CHECKSUM;
+```
+
+File sẽ có trên host tại `backups/AR_IMMS.bak`. Không dùng `docker compose down -v`
+nếu cần giữ lại volume database.
+
+Kết nối bằng SSMS tới `localhost,1433`,
 chọn SQL Server Authentication, đăng nhập `sa` với mật khẩu trong `.env`; nếu
 SSMS hỏi về mã hóa/chứng chỉ cho máy local, chọn tin cậy server certificate.
 
@@ -155,3 +181,12 @@ cá nhân.
   URL-encode ở bước 2; chỉ nhập password nguyên dạng ở `MSSQL_SA_PASSWORD`.
 - **Cổng 1433 đã được dùng**: đổi `MSSQL_PORT` và cổng trong `DATABASE_URL`
   thành cùng một cổng trống, rồi chạy `docker compose up -d`.
+- **Compose config đã đổi nhưng Agent hoặc memory limit chưa cập nhật**: chạy
+  `docker compose up -d --force-recreate sqlserver`. Database vẫn ở named volume;
+  không xóa volume để áp dụng cấu hình.
+- **SQL Server unhealthy do Agent**: kiểm tra log bằng
+  `docker compose logs sqlserver`; đợi SQL Server hoàn tất khởi động, rồi chạy
+  `docker compose ps` và `.\scripts\test-compose.ps1`.
+- **Backup không thấy hoặc không ghi được**: bảo đảm thư mục `backups/` nằm cạnh
+  `compose.yaml`, Docker Desktop có quyền truy cập repository, và T-SQL dùng
+  đường dẫn trong container `/var/opt/mssql/backups`.

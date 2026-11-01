@@ -12,6 +12,9 @@
 - Kịch bản kiểm thử SQL: chạy `database/01_create_database.sql` đến `database/05_retention_policy.sql` hai lần, sau đó chạy `database/06_verify_seed_data.sql`.
 - Hướng dẫn cài đồng nhất cho Windows, Docker, ODBC Driver 18, `.env`, URL-encode và kiểm tra `/health` trên hai máy: `docs/SETUP-WINDOWS.md`.
 - Script smoke test endpoint: `scripts/test-health.ps1`.
-- Đã kiểm tra cú pháp PowerShell, đầu ra healthy của script smoke test, phản hồi `/health` 200/503 bằng Flask test client, và URL-encode password có ký tự đặc biệt.
-- Docker Engine không chạy trong môi trường hiện tại; kiểm thử Docker thật, xác nhận `/health` trên hai máy và review PR vẫn cần nhóm thực hiện.
+- Compose bật SQL Server Agent, mount `backups/` vào container và giới hạn memory; `scripts/test-compose.ps1` kiểm tra Agent, backup/verify, host mount và hard limit.
+- Docker Compose smoke test đã chạy thành công hai lần với container SQL Server: Agent `Running`, SQL Server thấy giới hạn 3072 MB, container giới hạn 4 GiB, backup được verify và file hiện trên host.
+- Sau khi recreate container, database `AR_IMMS` vẫn còn; Flask `/health` kết nối Docker SQL Server thực tế và trả `healthy`.
+- Đã kiểm tra cú pháp PowerShell, lỗi kết nối trả 503 qua Flask test client, và URL-encode password có ký tự đặc biệt.
+- Máy thứ hai và review PR chưa được xác nhận. Trên database AR_IMMS có sẵn tại máy kiểm thử, `database/06_verify_seed_data.sql` báo thiếu `sp_record_telemetry`; chạy đầy đủ script `database/04_procedures_triggers_views.sql` trước khi chạy verifier trên database này.
 - Kiểm tra SQL Server local chạy hai lượt thành công trong phiên trước.
