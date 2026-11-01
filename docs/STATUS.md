@@ -10,4 +10,8 @@
 ## Kiểm tra và review
 
 - Kịch bản kiểm thử SQL: chạy `database/01_create_database.sql` đến `database/05_retention_policy.sql` hai lần, sau đó chạy `database/06_verify_seed_data.sql`.
-- Kết quả kiểm thử thực tế và review PR: chưa xác nhận trong phiên này.
+- Hướng dẫn cài đồng nhất cho Windows, Docker, ODBC Driver 18, `.env`, URL-encode và kiểm tra `/health` trên hai máy: `docs/SETUP-WINDOWS.md`.
+- Script smoke test endpoint: `scripts/test-health.ps1`.
+- Đã kiểm tra cú pháp PowerShell, đầu ra healthy của script smoke test, phản hồi `/health` 200/503 bằng Flask test client, và URL-encode password có ký tự đặc biệt.
+- Docker Engine không chạy trong môi trường hiện tại; kiểm thử Docker thật, xác nhận `/health` trên hai máy và review PR vẫn cần nhóm thực hiện.
+- Kiểm tra SQL Server local chạy hai lượt thành công trong phiên trước.
