@@ -20,3 +20,17 @@
 - Sau khi recreate container, database `AR_IMMS` vẫn còn; Flask `/health` kết nối Docker SQL Server thực tế và trả `healthy`.
 - Đã kiểm tra cú pháp PowerShell, lỗi kết nối trả 503 qua Flask test client, và URL-encode password có ký tự đặc biệt.
 - Review PR và chạy thử trên máy thứ hai còn chờ nhóm xác nhận.
+
+## Tài liệu và quản lý công việc
+
+- Đã có mục lục tài liệu, phạm vi MoSCoW, quy ước kỹ thuật và hướng dẫn luồng
+  Kanban tại `docs/README.md`, `docs/SCOPE-MOSCOW.md`,
+  `docs/CONVENTIONS.md` và `docs/KANBAN-WORKFLOW.md`.
+- Backlog Jira CSV là kế hoạch dự kiến, không phải bằng chứng các Epic đã hoàn
+  thành. Cần xác nhận cấu hình board/WIP, mapping các cột `Labels` khi import
+  và phân công người thứ năm (CSV hiện có vai A–D).
+- Task khảo sát/chạy thử source tham khảo và ghi `SOURCE-AUDIT` trong backlog
+  chưa có kết quả được xác minh trong repo này; cần hoàn thành riêng trước khi
+  đánh dấu issue tương ứng là Done.
+- Cần nhóm rà soát WIP/DoR/DoD đề xuất và đối chiếu quy ước mục tiêu với hiện
+  trạng schema/script cũ trước khi áp dụng migration đổi tên/di chuyển script.

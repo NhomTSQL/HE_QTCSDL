@@ -23,3 +23,7 @@ Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
 - Database triển khai là SQL Server Developer; không dùng PostgreSQL/SQLite thay thế.
 - Không commit `.env`, mật khẩu hoặc khóa bí mật. Mỗi máy dùng mật khẩu SQL Server riêng.
 - Hash mật khẩu trong dữ liệu seed chỉ là placeholder; thay bằng hash hợp lệ trước khi dùng chức năng đăng nhập.
+
+## Tài liệu dự án
+
+Mục lục tài liệu, phạm vi MoSCoW và quy trình Kanban: [docs/README.md](docs/README.md).
