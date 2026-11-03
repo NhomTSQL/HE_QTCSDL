@@ -14,6 +14,7 @@ hướng dẫn, cài dependencies rồi khởi động Flask. Xác nhận
 bằng `.\scripts\test-health.ps1`.
 
 Hướng dẫn chạy lại và kiểm thử script database: [database/MIGRATION_GUIDE_SQLSERVER.md](database/MIGRATION_GUIDE_SQLSERVER.md).
+ERD, từ điển dữ liệu và phân tích chuẩn hóa: [docs/ERD-DATA-DICTIONARY.md](docs/ERD-DATA-DICTIONARY.md).
 Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
 `.\scripts\test-compose.ps1`.
 

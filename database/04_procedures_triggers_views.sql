@@ -91,12 +91,16 @@ CREATE OR ALTER VIEW vw_dashboard_summary AS
 SELECT
     (SELECT COUNT(*) FROM nodes WHERE status = 'ONLINE') AS active_nodes,
     (SELECT COUNT(*) FROM nodes) AS total_nodes,
-    (SELECT AVG(value) FROM telemetry_metrics
-     WHERE metric_type = 'cpu_usage_percent'
-       AND timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS avg_cpu_5min,
-    (SELECT MAX(value) FROM telemetry_metrics
-     WHERE metric_type = 'temperature_celsius'
-       AND timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS max_temp_5min,
+    (SELECT AVG(telemetry.value)
+     FROM telemetry_metrics telemetry
+     INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
+     WHERE metric.code = 'cpu_usage_percent'
+       AND telemetry.timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS avg_cpu_5min,
+    (SELECT MAX(telemetry.value)
+     FROM telemetry_metrics telemetry
+     INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
+     WHERE metric.code = 'temperature_celsius'
+       AND telemetry.timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS max_temp_5min,
     (SELECT COUNT(*) FROM alerts WHERE status = 'OPEN') AS open_alerts,
     (SELECT COUNT(*) FROM tickets WHERE status NOT IN ('CLOSED')) AS active_tickets;
 GO
@@ -108,16 +112,17 @@ GO
 CREATE OR ALTER VIEW vw_latest_telemetry AS
 WITH RankedMetrics AS (
     SELECT
-        node_id,
-        metric_type,
-        value,
-        unit,
-        timestamp,
+        telemetry.node_id,
+        metric.code AS metric_type,
+        telemetry.value,
+        metric.unit,
+        telemetry.timestamp,
         ROW_NUMBER() OVER (
-            PARTITION BY node_id, metric_type
-            ORDER BY timestamp DESC
+            PARTITION BY telemetry.node_id, telemetry.metric_type_id
+            ORDER BY telemetry.timestamp DESC
         ) AS rn
-    FROM telemetry_metrics
+    FROM telemetry_metrics telemetry
+    INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
 )
 SELECT node_id, metric_type, value, unit, timestamp
 FROM RankedMetrics
@@ -145,7 +150,8 @@ GO
 -- ═══════════════════════════════════════════════════════════════════
 -- SP: Ghi nhận bản tin Telemetry + kiểm tra ngưỡng tự động
 -- ═══════════════════════════════════════════════════════════════════
--- Test case: ghi CPU 95% cho node hợp lệ; expected: telemetry được lưu và alert CRITICAL được tạo.
+-- Test case: ghi CPU 95% với unit '%' cho Node hợp lệ; expected: lưu telemetry và tạo alert CRITICAL.
+-- Unit sai bị từ chối trước khi ghi; kiểm tra trong database/07_test_normalized_schema.sql.
 
 CREATE OR ALTER PROCEDURE sp_record_telemetry
     @node_id        INT,
@@ -156,9 +162,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @metric_type_id INT, @canonical_unit NVARCHAR(20);
+
+    SELECT @metric_type_id = id, @canonical_unit = unit
+    FROM metric_types
+    WHERE code = @metric_type;
+
+    IF @metric_type_id IS NULL
+        THROW 51030, N'Unknown telemetry metric type.', 1;
+
+    IF @canonical_unit IS NULL OR @canonical_unit <> @unit
+        THROW 51031, N'Telemetry unit does not match the metric type.', 1;
+
     -- 1. Lưu telemetry
-    INSERT INTO telemetry_metrics (node_id, metric_type, value, unit, timestamp)
-    VALUES (@node_id, @metric_type, @value, @unit, SYSUTCDATETIME());
+    INSERT INTO telemetry_metrics (node_id, metric_type_id, value, timestamp)
+    VALUES (@node_id, @metric_type_id, @value, SYSUTCDATETIME());
 
     -- 2. Cập nhật last_ping_at trên node
     UPDATE nodes
@@ -177,7 +195,7 @@ BEGIN
 
     SELECT @threshold_id = id, @critical = critical_threshold, @warning = warning_threshold
     FROM alert_thresholds
-    WHERE metric_type = @metric_type AND is_active = 1;
+    WHERE metric_type_id = @metric_type_id AND is_active = 1;
 
     IF @threshold_id IS NOT NULL AND @value >= @critical
     BEGIN
