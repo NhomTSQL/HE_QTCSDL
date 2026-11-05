@@ -6,14 +6,18 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      MSSQL_AGENT_ENABLED: "true"
+      MSSQL_MEMORY_LIMIT_MB: "3072"
     ports:
       - "${MSSQL_PORT:-1433}:1433"
     volumes:
       - ar_imms_sqlserver_data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backups
+    mem_limit: 4g
     healthcheck:
       test:
         - CMD-SHELL
-        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "SELECT 1" -b
+        - /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "IF NOT EXISTS (SELECT 1 FROM sys.dm_server_services WHERE servicename LIKE N'%Agent%' AND status_desc = N'Running') THROW 51000, 'SQL Server Agent is not running', 1;" -b
       interval: 10s
       timeout: 5s
       retries: 12

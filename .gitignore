@@ -15,18 +15,17 @@ node_modules/
 
 # Local database files
 *.db
+/backups/*.bak
 
-# Keep SQL schema under version control
+# Keep SQL scripts and database documentation under version control
 /database/*
 !/database/*.sql
 !/database/*.md
 !/database/
 
-/database/
 
 *.pyc
 
-CLAUDE.md
 
 .vscode/settings.json
 
