@@ -14,7 +14,7 @@ WHERE telemetry.node_id = 1 AND metric.code = N'cpu_usage_percent';
 
 BEGIN TRANSACTION;
 BEGIN TRY
-    EXEC dbo.sp_record_telemetry
+    EXEC dbo.usp_record_telemetry
         @node_id = 1,
         @metric_type = N'cpu_usage_percent',
         @value = 55.0,
@@ -42,7 +42,7 @@ PRINT N'PASS: telemetry rejects a non-canonical unit without writing data.';
 
 BEGIN TRANSACTION;
 BEGIN TRY
-    EXEC dbo.sp_record_telemetry
+    EXEC dbo.usp_record_telemetry
         @node_id = 1,
         @metric_type = N'cpu_usage_percent',
         @value = 95.0,

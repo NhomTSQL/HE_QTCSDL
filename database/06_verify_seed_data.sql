@@ -103,10 +103,10 @@ IF OBJECT_ID(N'dbo.trg_users_updated_at', N'TR') IS NULL
    OR OBJECT_ID(N'dbo.trg_ticket_status_audit', N'TR') IS NULL
     THROW 51013, N'Expected all five triggers.', 1;
 
-IF OBJECT_ID(N'dbo.sp_record_telemetry', N'P') IS NULL
-   OR OBJECT_ID(N'dbo.sp_check_stale_nodes', N'P') IS NULL
-   OR OBJECT_ID(N'dbo.sp_report_pue', N'P') IS NULL
-   OR OBJECT_ID(N'dbo.sp_cleanup_old_telemetry', N'P') IS NULL
+IF OBJECT_ID(N'dbo.usp_record_telemetry', N'P') IS NULL
+   OR OBJECT_ID(N'dbo.usp_check_stale_nodes', N'P') IS NULL
+   OR OBJECT_ID(N'dbo.usp_report_pue', N'P') IS NULL
+   OR OBJECT_ID(N'dbo.usp_cleanup_old_telemetry', N'P') IS NULL
     THROW 51014, N'Expected all four stored procedures.', 1;
 
 IF OBJECT_ID(N'dbo.vw_dashboard_summary', N'V') IS NULL
@@ -114,7 +114,7 @@ IF OBJECT_ID(N'dbo.vw_dashboard_summary', N'V') IS NULL
    OR OBJECT_ID(N'dbo.vw_hierarchy_tree', N'V') IS NULL
     THROW 51015, N'Expected all three views.', 1;
 
-IF OBJECT_ID(N'dbo.fn_average_mttr_minutes', N'FN') IS NULL
+IF OBJECT_ID(N'dbo.ufn_average_mttr_minutes', N'FN') IS NULL
     THROW 51016, N'Expected the MTTR function.', 1;
 
 IF (SELECT COUNT(*) FROM permissions) <> 13
