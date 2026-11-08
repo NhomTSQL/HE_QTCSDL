@@ -153,7 +153,7 @@ GO
 -- Test case: ghi CPU 95% với unit '%' cho Node hợp lệ; expected: lưu telemetry và tạo alert CRITICAL.
 -- Unit sai bị từ chối trước khi ghi; kiểm tra trong database/07_test_normalized_schema.sql.
 
-CREATE OR ALTER PROCEDURE sp_record_telemetry
+CREATE OR ALTER PROCEDURE usp_record_telemetry
     @node_id        INT,
     @metric_type    NVARCHAR(50),
     @value          FLOAT,
@@ -227,7 +227,7 @@ GO
 -- ═══════════════════════════════════════════════════════════════════
 -- Test case: đặt last_ping_at quá hạn rồi chạy SP; expected: node chuyển UNAVAILABLE và có alert mở.
 
-CREATE OR ALTER PROCEDURE sp_check_stale_nodes
+CREATE OR ALTER PROCEDURE usp_check_stale_nodes
     @stale_timeout_seconds INT = 90
 AS
 BEGIN
@@ -266,7 +266,7 @@ GO
 -- ═══════════════════════════════════════════════════════════════════
 -- Test case: gọi SP cho site có node; expected: trả PUE, công suất IT và công suất cơ sở.
 
-CREATE OR ALTER PROCEDURE sp_report_pue
+CREATE OR ALTER PROCEDURE usp_report_pue
     @site_id INT = 1
 AS
 BEGIN
@@ -302,7 +302,7 @@ GO
 -- FUNCTION: Tính MTTR (Mean Time To Resolution) trung bình
 -- ═══════════════════════════════════════════════════════════════════
 
-CREATE OR ALTER FUNCTION fn_average_mttr_minutes()
+CREATE OR ALTER FUNCTION ufn_average_mttr_minutes()
 RETURNS FLOAT
 AS
 BEGIN

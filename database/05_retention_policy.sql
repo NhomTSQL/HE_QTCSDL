@@ -7,7 +7,7 @@
 USE AR_IMMS;
 GO
 
-CREATE OR ALTER PROCEDURE sp_cleanup_old_telemetry
+CREATE OR ALTER PROCEDURE usp_cleanup_old_telemetry
     @retention_days INT = 30
 AS
 BEGIN
