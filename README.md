@@ -1,23 +1,30 @@
 # AR-IMMS
 
-## Bước 1: Khởi động SQL Server và kiểm tra Flask
+## Cài đặt và chạy
 
-### Yêu cầu
+Hướng dẫn Windows thống nhất cho nhóm — Docker Desktop, SQL Server Developer,
+Microsoft ODBC Driver 18, cấu hình `.env` và URL-encode mật khẩu — nằm tại
+[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md). Thực hiện trên ít nhất hai máy
+độc lập và ghi lại kết quả kiểm tra `/health` tại cuối tài liệu.
 
-- Docker Desktop đang chạy
-- Python 3.10+
-- Microsoft ODBC Driver 18 for SQL Server trên Windows
+Tóm tắt: tạo `.env` riêng trên mỗi máy từ [.env.example](.env.example), khởi động
+SQL Server bằng `docker compose up -d sqlserver`, tạo database/chạy script theo
+hướng dẫn, cài dependencies rồi khởi động Flask. Xác nhận
+`http://localhost:5000/health` trả về `{"status":"healthy","database":"connected"}`
+bằng `.\scripts\test-health.ps1`.
 
-### 1. Tạo file môi trường
+Hướng dẫn chạy lại và kiểm thử script database: [database/MIGRATION_GUIDE_SQLSERVER.md](database/MIGRATION_GUIDE_SQLSERVER.md).
+ERD, từ điển dữ liệu và phân tích chuẩn hóa: [docs/ERD-DATA-DICTIONARY.md](docs/ERD-DATA-DICTIONARY.md).
+Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
+`.\scripts\test-compose.ps1`.
 
-Sao chép `.env.example` thành `.env`. Đặt cùng một mật khẩu mạnh cho `MSSQL_SA_PASSWORD` và trong `DATABASE_URL` (URL-encode các ký tự đặc biệt nếu có).
+## Quy tắc dự án
 
-### 2. Khởi động SQL Server
+- Database triển khai là SQL Server Developer; không dùng PostgreSQL/SQLite thay thế.
+- Không commit `.env`, mật khẩu hoặc khóa bí mật. Mỗi máy dùng mật khẩu SQL Server riêng.
+- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; thay bằng hash hợp lệ trước khi dùng chức năng đăng nhập.
 
-```powershell
-docker compose up -d sqlserver
-docker compose ps
-```
+## Tài liệu dự án
 
 Chờ container báo healthy. Sau đó mở SQL Server Management Studio (SSMS) hoặc Azure Data Studio, kết nối tới `localhost,1433` bằng `sa` và mật khẩu trong `.env`.
 
@@ -70,3 +77,4 @@ Flask nạp cấu hình từ `.env` tại thư mục gốc dự án. Có thể �
 3. Code, rồi `git add .` và `git commit -m "SCRUM-<số>: ..."`
 4. `git push -u origin feature/SCRUM-<số>-<mô-tả>`
 5. Tạo Pull Request vào `develop`
+Mục lục tài liệu, phạm vi MoSCoW và quy trình Kanban: [docs/README.md](docs/README.md).
