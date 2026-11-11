@@ -3,13 +3,14 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
+
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 
-db = SQLAlchemy()
+from extensions import db
+from auth import auth_bp
 
 
 load_dotenv()
@@ -48,6 +49,8 @@ def create_app() -> Flask:
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
     db.init_app(app)
+    app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY")
+    app.register_blueprint(auth_bp)
 
     @app.get("/health")
     def health_check():
