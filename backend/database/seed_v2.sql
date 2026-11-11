@@ -31,4 +31,4 @@ INSERT INTO workloads (id, node_id, name, container_id, image_name, status, port
 ('wkl-001', 'node-001', 'nestjs-backend-api', 'cnt-c101a', 'node:18-alpine', 'RUNNING', 3000),
 ('wkl-002', 'node-001', 'sql-server-db', 'cnt-c101b', 'mcr.microsoft.com/mssql/server', 'RUNNING', 1433),
 ('wkl-003', 'node-002', 'telemetry-collector-agent', 'cnt-c102a', 'python:3.10-slim', 'RUNNING', 5000),
-('wkl-004', 'node-003', 'nginx-reverse-proxy', 'cnt-c103a', 'nginx:alpine', 'RUNNING', 80);
+('wkl-004', 'node-003', 'nginx-reverse-proxy', 'cnt-c103a', 'nginx:alpine', 'RUNNING', 80); 
