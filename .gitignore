@@ -29,4 +29,4 @@ node_modules/
 
 .vscode/settings.json
 
-test.*
+test.*telemetry_data.csv
