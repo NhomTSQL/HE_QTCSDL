@@ -53,17 +53,13 @@ di chuyển object trong một thay đổi không liên quan.
 
 ## Backend và hợp đồng API
 
-- Backend Flask truy cập DB qua `pyodbc` và stored procedure; không đặt SQL
-  nghiệp vụ, ORM hoặc truy vấn ad hoc trong route/service.
-- API health/connectivity không được trở thành ngoại lệ âm thầm cho truy vấn
-  nghiệp vụ. Hiện `backend/app.py` có `SELECT 1` để kiểm tra kết nối; cần phân
-  biệt rõ đây là probe kỹ thuật và xử lý theo yêu cầu stored-procedure-only của
-  dự án khi hoàn thiện backend.
-- Giữ nguyên REST API contract của source tham chiếu trong phạm vi đã chọn.
-  Thay đổi request/response/status code cần được nhóm chấp thuận và cập nhật
-  test/tài liệu API.
-- Validate dữ liệu ở biên API và kiểm tra lại invariant quan trọng trong DB;
-  không dựa riêng vào frontend để bảo vệ dữ liệu.
+- Backend Next.js truy cập DB qua gói `mssql` (tedious) qua hàm `callSp(name, params)`;
+  không đặt SQL nghiệp vụ, ORM hoặc truy vấn ad hoc trong route.
+- API route chỉ làm 3 việc: validate đầu vào, xác thực/phân quyền, gọi SP, ánh xạ lỗi.
+- Hợp đồng API được đóng băng trong `docs/API.md`. Thay đổi endpoint/payload/status code
+  cần được nhóm chấp thuận và cập nhật tài liệu trước khi implement.
+- Validate dữ liệu ở biên API (Next.js route handler) và kiểm tra lại invariant
+  quan trọng trong DB; không dựa riêng vào frontend để bảo vệ dữ liệu.
 - Lỗi DB phải được log/ánh xạ thành phản hồi API phù hợp; không trả thông tin
   bí mật, connection string, stack trace hoặc SQL nội bộ cho client.
 - Không commit `.env`, mật khẩu, JWT secret, API key, credential collector hay

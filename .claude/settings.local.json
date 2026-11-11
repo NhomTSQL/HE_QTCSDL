@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'chore: Prompt 0 - dọn repo, tạo API.md, SPRINT-PLAN.md, DEMO.md, cập nhật docs cho stack Next.js *)"
+    ]
+  }
+}

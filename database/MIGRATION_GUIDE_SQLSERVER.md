@@ -11,17 +11,27 @@ Sau khi SQL Server khởi động, kết nối bằng SQL Server Management Stud
 3. `database/03_seed_data.sql`
 4. `database/04_procedures_triggers_views.sql`
 5. `database/05_retention_policy.sql`
+6. `database/06_verify_seed_data.sql`
+7. `database/07_test_normalized_schema.sql`
+8. `database/08_telemetry_wide_node_latest_audit_v2.sql`
 
 `database/02_create_tables.sql` tạo schema chuẩn hóa và nâng cấp các cột JSON/
 chuỗi của schema cũ. Việc nâng cấp chạy trong transaction; JSON không hợp lệ,
 thuộc tính không nhận diện hoặc đơn vị telemetry không nhất quán sẽ làm script
 thất bại và rollback thay vì xóa dữ liệu không thể ánh xạ.
 
+`database/08_telemetry_wide_node_latest_audit_v2.sql` bổ sung snapshot telemetry
+rộng với khóa `BIGINT`, thời điểm `collected_at`, bảng `node_latest` và metadata
+audit v2 mà không phá bảng `telemetry_metrics` chuẩn hóa hiện hữu.
+
 Để xác nhận các script an toàn khi chạy lại, chạy lại bước 1–5 lần thứ hai,
-sau đó chạy `database/06_verify_seed_data.sql` và
-`database/07_test_normalized_schema.sql`. Kết quả mong đợi là thông báo `PASS`
+sau đó chạy lại bước 6–8. Kết quả mong đợi là thông báo `PASS`
 cho dữ liệu/schema, một kiểm thử nghiệp vụ hợp lệ và hai kiểm thử âm; mọi lỗi
 SQL làm script kết thúc không thành công.
+
+Cuối cùng chạy `database/08_test_telemetry_wide_node_latest_audit_v2.sql`; test này
+kiểm tra kiểu khóa, `collected_at`, projection mới nhất và audit metadata, đồng
+thời rollback toàn bộ dữ liệu test.
 
 ERD, từ điển dữ liệu và phân tích 3NF: [docs/ERD-DATA-DICTIONARY.md](../docs/ERD-DATA-DICTIONARY.md).
 

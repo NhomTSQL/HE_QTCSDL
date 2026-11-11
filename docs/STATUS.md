@@ -1,36 +1,63 @@
-# Trạng thái dự án
+# Trạng thái dự án AR-IMMS
 
-## Database scripts
+Cập nhật: 2026-11-11
 
-- Schema SQL Server có ERD/từ điển dữ liệu và phân tích 3NF tại `docs/ERD-DATA-DICTIONARY.md`.
-- `database/02_create_tables.sql` tạo 25 bảng; schema tách RBAC, metric/unit, marker coordinates và NIC thành các quan hệ riêng.
-- Khi nâng cấp schema cũ, script chuyển JSON/chuỗi trong transaction; dữ liệu không ánh xạ được gây lỗi và rollback thay vì bị bỏ âm thầm.
-- Script schema, index và database object hỗ trợ chạy lại; seed data thêm các hàng còn thiếu.
-- `database/06_verify_seed_data.sql` kiểm tra seed/schema; `database/07_test_normalized_schema.sql` kiểm tra SP với dữ liệu hợp lệ, đơn vị sai và metric không tồn tại.
-- Các hash mật khẩu trong seed data chỉ là placeholder; phải thay bằng hash hợp lệ trước khi dùng đăng nhập.
+## Hiện trạng thực tế
 
-## Kiểm tra và review
+### Đã có (đã xác minh chạy được)
+- Schema SQL Server 25 bảng: `database/01–07.sql`, `08_telemetry_wide...sql`
+- Bảng `telemetry_wide` + `node_latest` (script 08)
+- SP `sp_record_telemetry`, `sp_check_stale_nodes` (tiền tố cũ, cần đổi thành `usp_`)
+- Trigger audit, view `vw_hierarchy_tree` (script 04)
+- Docker Compose: SQL Server + SQL Agent, giới hạn RAM, mount backup
+- Scripts: `06_verify_seed_data.sql` PASS, `07_test_normalized_schema.sql` PASS
 
-- SQL Server Express: thiết lập mới chạy script 01–05 hai lượt, sau đó `06` và `07` đều PASS.
-- SQL Server Express: tạo schema cũ từ commit trước, chạy nâng cấp 02 và seed/object mới hai lượt; dữ liệu quyền, tọa độ, metric và NIC được giữ lại; `06`/`07` đều PASS.
-- Hướng dẫn cài đồng nhất cho Windows, Docker, ODBC Driver 18, `.env`, URL-encode và kiểm tra `/health` trên hai máy: `docs/SETUP-WINDOWS.md`.
-- Script smoke test endpoint: `scripts/test-health.ps1`.
-- Compose bật SQL Server Agent, mount `backups/` vào container và giới hạn memory; `scripts/test-compose.ps1` kiểm tra Agent, backup/verify, host mount và hard limit.
-- Docker Compose smoke test đã chạy thành công hai lần với container SQL Server: Agent `Running`, SQL Server thấy giới hạn 3072 MB, container giới hạn 4 GiB, backup được verify và file hiện trên host.
-- Sau khi recreate container, database `AR_IMMS` vẫn còn; Flask `/health` kết nối Docker SQL Server thực tế và trả `healthy`.
-- Đã kiểm tra cú pháp PowerShell, lỗi kết nối trả 503 qua Flask test client, và URL-encode password có ký tự đặc biệt.
-- Review PR và chạy thử trên máy thứ hai còn chờ nhóm xác nhận.
+### Chưa có
+- Tầng ứng dụng: web, API, collector — chưa tồn tại
+- SP `usp_authenticate_user`, `usp_authenticate_agent`, `usp_list_nodes_latest`, `usp_list_alerts`
+- Logic alert trong `usp_record_telemetry_wide` (SP rộng chưa có alert, chống trùng)
+- Hash mật khẩu seed = placeholder, chưa đăng nhập được
+- SQL Login/User/Role/GRANT
+- Đo hiệu năng (index, partition, STATISTICS IO)
+- Backup/restore có bằng chứng
 
-## Tài liệu và quản lý công việc
+## Dữ liệu mẫu cục bộ (không commit vào git)
 
-- Đã có mục lục tài liệu, phạm vi MoSCoW, quy ước kỹ thuật và hướng dẫn luồng
-  Kanban tại `docs/README.md`, `docs/SCOPE-MOSCOW.md`,
-  `docs/CONVENTIONS.md` và `docs/KANBAN-WORKFLOW.md`.
-- Backlog Jira CSV là kế hoạch dự kiến, không phải bằng chứng các Epic đã hoàn
-  thành. Cần xác nhận cấu hình board/WIP, mapping các cột `Labels` khi import
-  và phân công người thứ năm (CSV hiện có vai A–D).
-- Task khảo sát/chạy thử source tham khảo và ghi `SOURCE-AUDIT` trong backlog
-  chưa có kết quả được xác minh trong repo này; cần hoàn thành riêng trước khi
-  đánh dấu issue tương ứng là Done.
-- Cần nhóm rà soát WIP/DoR/DoD đề xuất và đối chiếu quy ước mục tiêu với hiện
-  trạng schema/script cũ trước khi áp dụng migration đổi tên/di chuyển script.
+| Tài khoản | Mật khẩu demo | Ghi chú |
+|---|---|---|
+| admin | _chưa có hash thật_ | Seed chỉ có placeholder |
+| operator | _chưa có hash thật_ | — |
+| technician | _chưa có hash thật_ | — |
+
+Sau khi DB agent chạy script 09 + 10: ghi hash và agent key mẫu vào đây.
+
+## Việc cần làm ngay (hôm nay 11/11)
+
+1. **DB**: Script 09 đổi tên `usp_`, mở rộng `usp_record_telemetry_wide` (alert +
+   node status từ `alert_thresholds`), `usp_authenticate_*`, `usp_list_*`, seed hash bcrypt thật
+2. **Web**: Next.js init, `web/lib/db.ts` với `callSp()`, routes theo `docs/API.md`
+3. **Collector**: `collector/collector.py` psutil + retry + buffer
+
+Cuối ngày 11/11 bắt buộc đạt: `POST /api/telemetry` → 201, `GET /api/nodes` trả CPU sống.
+
+## Lệnh kiểm chứng (cập nhật khi có)
+
+```bash
+# Health check
+curl http://localhost:3000/api/health
+
+# Đăng nhập, lấy token
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"operator","password":"demo123"}'
+
+# Gửi telemetry (thay AGENT_KEY và NODE_ID)
+curl -X POST http://localhost:3000/api/telemetry \
+  -H "X-Agent-Key: AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"node_id":1,"collected_at":"2026-11-11T10:00:00Z","cpu_usage_percent":45.2,...}'
+
+# Lấy danh sách node (thay TOKEN)
+curl http://localhost:3000/api/nodes \
+  -H "Authorization: Bearer TOKEN"
+```

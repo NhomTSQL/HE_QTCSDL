@@ -16,8 +16,7 @@ collector phục vụ việc trình diễn luồng nghiệp vụ qua CSDL.
 - Dùng SQL Server Developer cho bản nộp; không thay bằng PostgreSQL hoặc SQLite.
 - Các thao tác nghiệp vụ của backend đi qua stored procedure trên SQL Server;
   không đưa truy vấn nghiệp vụ hoặc ORM trực tiếp vào backend.
-- Giữ REST API contract của source mẫu trong phạm vi đã chọn; thay tầng dữ liệu
-  phía sau theo thiết kế của nhóm.
+- Stack tầng ứng dụng: Next.js (web + API routes) · mssql (tedious) · Python + psutil (collector).
 - CSV Jira import là backlog và kế hoạch dự kiến. Một issue chỉ được coi là hoàn
   thành khi Jira và `STATUS.md` có trạng thái cùng bằng chứng kiểm thử/demo.
 - Các tên Epic trong bảng dưới đây đối chiếu với bộ CSV Jira import hiện tại.
