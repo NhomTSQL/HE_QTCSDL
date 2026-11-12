@@ -6,13 +6,22 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 DECLARE @failures INT = 0;
 
--- Contract test: user lookup returns one row, role code, active flag.
-IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE username=N'admin')
-    PRINT N'[SKIP] Seed user admin unavailable';
-ELSE IF NOT EXISTS (
-    SELECT 1 FROM OPENQUERY([LOCALSERVER], 'EXEC AR_IMMS.dbo.usp_authenticate_user @username = N''admin''')
-)
-    PRINT N'[NOTE] Verify usp_authenticate_user manually; OPENQUERY unavailable in local SQL Server.';
+-- Contract test: user lookup returns exactly one active row with expected role.
+DECLARE @auth TABLE (id INT, username NVARCHAR(100), password_hash NVARCHAR(255), role_code NVARCHAR(50), is_active BIT);
+INSERT INTO @auth EXEC dbo.usp_authenticate_user @username=N'admin';
+IF (SELECT COUNT(*) FROM @auth)=1 AND EXISTS(SELECT 1 FROM @auth WHERE role_code=N'admin' AND is_active=1)
+    PRINT N'[PASS] User authentication lookup contract.';
+ELSE
+BEGIN
+    PRINT N'[FAIL] User authentication lookup contract.';
+    THROW 51110, N'usp_authenticate_user contract failed.', 1;
+END;
+
+-- Test invalid agent key returns no rows.
+DECLARE @agent TABLE (agent_id INT, node_id INT, is_active BIT);
+INSERT INTO @agent EXEC dbo.usp_authenticate_agent @key_hash='0000000000000000000000000000000000000000000000000000000000000000';
+IF NOT EXISTS(SELECT 1 FROM @agent) PRINT N'[PASS] Unknown agent hash rejected.';
+ELSE THROW 51111, N'Unknown agent hash was accepted.', 1;
 GO
 
 -- Test ingest validations. Each data-changing case is isolated and rolled back.

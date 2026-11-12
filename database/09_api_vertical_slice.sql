@@ -248,5 +248,17 @@ BEGIN
     END CATCH;
 END;
 GO
+-- 8. Demo credentials for local development only.
+-- Password: demo123. Agent key: arimms-demo-agent-key-2026.
+-- Replace both values before any shared or production deployment.
+DECLARE @demo_password_hash NVARCHAR(255) = N'$2a$10$N5mNnBfguTqnp380tUCG3e5mP83J5pKjHleE9s/t96XUaHFwhdPva';
+UPDATE dbo.users SET password_hash=@demo_password_hash WHERE username IN (N'admin',N'operator',N'technician') AND password_hash LIKE N'%placeholder%';
+DECLARE @demo_agent_hash NVARCHAR(255) = N'749fc7b232c40b3e837dcfe8e9c6912e646a4a57bcfd11738424af1f11c646bc';
+IF EXISTS (SELECT 1 FROM dbo.data_collector_agents WHERE node_id=1 AND (api_key_hash IS NULL OR api_key_hash LIKE N'%placeholder%'))
+    UPDATE dbo.data_collector_agents SET api_key_hash=@demo_agent_hash, status=N'ACTIVE' WHERE node_id=1 AND (api_key_hash IS NULL OR api_key_hash LIKE N'%placeholder%');
+ELSE IF NOT EXISTS (SELECT 1 FROM dbo.data_collector_agents WHERE node_id=1)
+    INSERT dbo.data_collector_agents(node_id, agent_version, status, api_key_hash)
+    VALUES(1, N'1.0.0-demo', N'ACTIVE', @demo_agent_hash);
+
 PRINT N'=== 09_api_vertical_slice: all procedures ready ===';
 GO
