@@ -8,6 +8,7 @@
 - Script schema, index và database object hỗ trợ chạy lại; seed data thêm các hàng còn thiếu.
 - `database/06_verify_seed_data.sql` kiểm tra seed/schema; `database/07_test_normalized_schema.sql` kiểm tra SP với dữ liệu hợp lệ, đơn vị sai và metric không tồn tại.
 - Các hash mật khẩu trong seed data chỉ là placeholder; phải thay bằng hash hợp lệ trước khi dùng đăng nhập.
+- - `database/12_backup_recovery_model.sql`–`15_restore_disaster_recovery.sql`: chuyển recovery model FULL, SQL Agent job Full (CN 00:00), Diff (T2–T7 23:00), Log (30 phút) kèm `CHECKSUM` + `RESTORE VERIFYONLY`, job dọn file cũ hơn 7 ngày và script restore Full → Diff → Log.
 
 ## Kiểm tra và review
 
@@ -20,6 +21,8 @@
 - Sau khi recreate container, database `AR_IMMS` vẫn còn; Flask `/health` kết nối Docker SQL Server thực tế và trả `healthy`.
 - Đã kiểm tra cú pháp PowerShell, lỗi kết nối trả 503 qua Flask test client, và URL-encode password có ký tự đặc biệt.
 - Review PR và chạy thử trên máy thứ hai còn chờ nhóm xác nhận.
+- Load test ingest (`backend/load_test_ingest.py`): gửi `POST /telemetry` ở 3 mức 10/30/50 req/s (2300 request) tới Flask (debug tắt) và SQL Server Developer trên Windows, laptop 4 GB RAM. Kết quả: 2300/2300 phản hồi 201, 0 lỗi, tốc độ ghi thực tế 10/30/50 req/s, p95 lần lượt 59,1/30,5/29,8 ms. Đối chiếu DB: số dòng `telemetry_metrics` tăng đúng <số dòng tăng> dòng, `alerts` và trạng thái node không đổi. Test case và cách chạy lại: `docs/LOAD-TEST-INGEST.md`.
+- Load test ingest chưa chạy trên Docker và chưa xác định ngưỡng tối đa; đo bằng `127.0.0.1` vì lần đo đầu bằng `localhost` cho độ trễ khoảng 2 giây (nghi do IPv6, chưa kiểm chứng).
 
 ## Tài liệu và quản lý công việc
 
