@@ -30,3 +30,8 @@ node_modules/
 .vscode/settings.json
 
 test.*
+telemetry-queue*.jsonl
+collector/.env
+
+telemetry-queue*.jsonl
+collector/.env
