@@ -111,12 +111,14 @@ Mở và thực thi lần lượt các script trong SSMS:
 2. `database/02_create_tables.sql`
 3. `database/03_seed_data.sql`
 4. `database/04_procedures_triggers_views.sql`
-5. `database/05_retention_policy.sql`
+5. `database/05_indexes.sql`
+6. `database/08_dev_node_api_key.sql`
+7. `database/09_auth_procedures.sql`
+8. `database/16_alert_dedupe.sql`
+9. `database/17_dashboard_api_procedures.sql`
 
-Chạy lại cả năm script lần thứ hai để kiểm tra khả năng chạy lại, sau đó chạy
-`database/06_verify_seed_data.sql`. Kết quả mong đợi là `PASS`. Khi chạy lần đầu,
-password hash trong dữ liệu mẫu chỉ là placeholder; hãy thay bằng hash hợp lệ
-trước khi dùng chức năng đăng nhập.
+Chạy lại script idempotent để xác nhận triển khai; không chạy `database/00_reset.sql`
+trên database đang dùng. Sau seed, đặt mật khẩu demo bằng `py scripts/set_dev_passwords.py`.
 
 ## 4. Cài và khởi động Flask
 
@@ -156,10 +158,35 @@ Kết quả mong đợi:
 {"status":"healthy","database":"connected"}
 ```
 
-## 6. Xác nhận trên ít nhất hai máy
+## 6. Chạy Next.js dashboard
 
-Lặp lại các bước 1–5 riêng trên Máy 1 và Máy 2. Mỗi máy cần có Docker, ODBC Driver
-18, database, Flask đang chạy, và phải tự chạy `.\scripts\test-health.ps1`.
+Flask phải đang chạy. Mở terminal tại thư mục `web`:
+
+```powershell
+Copy-Item .env.example .env.local
+# BACKEND_URL mặc định http://localhost:5000
+npm ci
+npm run build
+npm run dev
+```
+
+Mở `http://localhost:3000`, đăng nhập bằng tài khoản demo. Next.js chỉ là BFF:
+mọi request `/api/*` được chuyển tiếp sang Flask, không có kết nối SQL Server
+trực tiếp và không cần cấu hình database trong `web/`.
+
+Kiểm tra nhanh:
+
+```powershell
+Invoke-RestMethod http://localhost:3000/api/health
+```
+
+Kết quả mong đợi giống `/health` của Flask. Nếu trả 503, kiểm tra `BACKEND_URL`
+và việc Flask đang chạy.
+
+## 7. Xác nhận trên ít nhất hai máy
+
+Lặp lại các bước 1–6 riêng trên Máy 1 và Máy 2. Mỗi máy cần có Docker, ODBC Driver
+18, database, Flask và dashboard đang chạy; chạy `.\scripts\test-health.ps1`.
 Ghi lại đầu ra thành công của từng máy để nhóm xác nhận không phụ thuộc cấu hình
 cá nhân.
 
