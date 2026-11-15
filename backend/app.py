@@ -3,13 +3,22 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
+
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 
-db = SQLAlchemy()
+from extensions import db
+from auth import auth_bp
+from dashboard_api import api_bp
+
+
+BACKEND_API_ERRORS = {
+    "51050": (404, "Node not found."),
+    "51051": (400, "collected_at is required."),
+    "51052": (422, "Telemetry percentage is invalid."),
+}
 
 
 load_dotenv()
@@ -48,6 +57,9 @@ def create_app() -> Flask:
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
     db.init_app(app)
+    app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY")
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(api_bp)
 
     @app.get("/health")
     def health_check():
