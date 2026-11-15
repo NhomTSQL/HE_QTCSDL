@@ -51,7 +51,7 @@ def list_alerts():
     if len(statuses) > 200 or any(not (c.isupper() or c.isdigit() or c in "_, ") for c in statuses):
         return jsonify({"error": "Invalid status filter."}), 400
     try:
-        return jsonify(_rows("EXEC dbo.usp_list_alerts @statuses = :statuses", {"statuses": statuses}))
+        return jsonify(_rows("{CALL dbo.usp_list_alerts (:statuses)}", {"statuses": statuses}))
     except DBAPIError:
         db.session.rollback()
         return jsonify({"error": "Failed to list alerts."}), 503
@@ -62,7 +62,7 @@ def list_alerts():
 def acknowledge_alert(alert_id):
     try:
         rows = _rows(
-            "EXEC dbo.usp_acknowledge_alert @alert_id = :alert_id, @user_id = :user_id",
+            "{CALL dbo.usp_acknowledge_alert (:alert_id, :user_id)}",
             {"alert_id": alert_id, "user_id": g.current_user["user_id"]},
         )
         db.session.commit()
@@ -78,7 +78,7 @@ def list_tickets():
     if statuses is not None and (len(statuses) > 200 or any(not (c.isupper() or c.isdigit() or c in "_, ") for c in statuses)):
         return jsonify({"error": "Invalid status filter."}), 400
     try:
-        return jsonify(_rows("EXEC dbo.usp_list_tickets @statuses = :statuses", {"statuses": statuses}))
+        return jsonify(_rows("{CALL dbo.usp_list_tickets (:statuses)}", {"statuses": statuses}))
     except DBAPIError:
         db.session.rollback()
         return jsonify({"error": "Failed to list tickets."}), 503
@@ -107,9 +107,8 @@ def create_ticket():
         return jsonify({"error": "alert_id must be a positive integer."}), 400
     try:
         rows = _rows(
-            "EXEC dbo.usp_create_ticket @node_id=:node_id, @title=:title, "
-            "@description=:description, @priority=:priority, "
-            "@created_by_user_id=:user_id, @alert_id=:alert_id",
+            "{CALL dbo.usp_create_ticket (:node_id, :title, :description, :priority, "
+            ":user_id, :alert_id)}",
             {"node_id": node_id, "title": title.strip(), "description": description,
              "priority": priority, "user_id": g.current_user["user_id"], "alert_id": alert_id},
         )
@@ -131,7 +130,7 @@ def update_ticket_status(ticket_id):
         return jsonify({"error": "status must be OPEN, IN_PROGRESS, PENDING_CLOSURE or CLOSED."}), 400
     try:
         rows = _rows(
-            "EXEC dbo.usp_update_ticket_status @ticket_id=:ticket_id, @new_status=:status",
+            "{CALL dbo.usp_update_ticket_status (:ticket_id, :status)}",
             {"ticket_id": ticket_id, "status": status},
         )
         db.session.commit()

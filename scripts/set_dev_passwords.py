@@ -28,7 +28,7 @@ def main() -> None:
     with engine.begin() as connection:
         for username in DEV_USERS:
             connection.execute(
-                text("EXEC dbo.usp_set_user_password_hash @username = :u, @password_hash = :h"),
+                text("{CALL dbo.usp_set_user_password_hash (:u, :h)}"),
                 {"u": username, "h": generate_password_hash(password)},
             )
             print(f"Da dat mat khau cho {username}")

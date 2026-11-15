@@ -96,7 +96,7 @@ def login():
 
     try:
         user = db.session.execute(
-            text("EXEC dbo.usp_authenticate_user @username = :username"),
+            text("{CALL dbo.usp_authenticate_user (:username)}"),
             {"username": username},
         ).mappings().first()
     except DBAPIError:
