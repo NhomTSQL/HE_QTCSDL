@@ -9,28 +9,27 @@ Cập nhật: 2026-11-15
 - Database: SQL Server Developer trong Docker Compose.
 - Nghiệp vụ telemetry: stored procedure SQL Server; Flask chỉ xác thực,
   kiểm tra payload, gọi procedure và ánh xạ lỗi HTTP.
-- Next.js/Node.js chỉ là phần phát triển cục bộ trên máy cá nhân, chưa thuộc
-  nhánh chung và không phải backend của bản nhóm.
+- Next.js dashboard nằm trong `web/`, chỉ làm BFF; không kết nối SQL Server trực tiếp.
+- Dashboard gọi Flask qua `BACKEND_URL`; Flask tiếp tục là API chung và là lớp duy nhất gọi stored procedure.
 
 Luồng chính:
 
 ```text
-Python Collector → Flask REST API → Stored Procedure → SQL Server
+Next.js BFF → Flask REST API → Stored Procedure → SQL Server
+Python Collector ────────────→ Flask REST API
 ```
 
-## Đã có trên `develop`
+## MVP đã triển khai trên nhánh hiện tại
 
-- Schema SQL Server và seed: `database/01` đến `database/07`.
-- Stored procedure `usp_record_telemetry` và các quy tắc cảnh báo/audit.
-- Flask `GET /health`.
-- Flask `POST /telemetry` với:
-  - xác thực `X-API-Key`;
-  - kiểm tra JSON và `node_id`;
-  - gọi `dbo.usp_record_telemetry`;
-  - rollback và ánh xạ lỗi stored procedure.
-- Test API Flask tại `backend/test_telemetry_api.py`.
+- Flask `GET /health`, `POST /telemetry`, `POST /auth/login`, `GET /auth/me`.
+- Flask dashboard API: `GET /api/nodes`, `GET /api/alerts`, `POST /api/alerts/<id>/ack`,
+  `GET /api/tickets`, `POST /api/tickets`, `PATCH /api/tickets/<id>/status`.
+- JWT role guard cho ADMINISTRATOR, SYSTEM_OPERATOR, FIELD_TECHNICIAN.
+- `database/17_dashboard_api_procedures.sql`: node snapshot, alert, acknowledge và ticket procedures.
+- Next.js dashboard trong `web/`; BFF proxy tới Flask, không có `mssql`, `bcryptjs`
+  hoặc truy cập DB trực tiếp.
+- BFF login dùng `access_token`; telemetry giữ contract `X-API-Key` + metric normalized.
 - Docker Compose chạy SQL Server Developer và SQL Server Agent.
-- Collector có timeout, retry giới hạn và offline queue.
 
 ## Cách kiểm tra backend
 
@@ -52,18 +51,31 @@ Kết quả mong đợi:
 {"status":"healthy","database":"connected"}
 ```
 
-Chạy test API sau khi đã áp dụng schema, seed và
-`database/08_dev_node_api_key.sql`:
+Chạy test API sau khi đã áp dụng schema, seed, `database/08_dev_node_api_key.sql`,
+`database/09_auth_procedures.sql`, `database/16_alert_dedupe.sql` và
+`database/17_dashboard_api_procedures.sql`:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s backend -p "test_*.py" -v
 ```
 
+## Cách kiểm tra frontend
+
+```powershell
+cd web
+Copy-Item .env.example .env.local
+npm ci
+npm run build
+npm run dev
+```
+
+Mở `http://localhost:3000`, đăng nhập bằng tài khoản demo đã đặt mật khẩu ở
+`scripts/set_dev_passwords.py`.
+
 ## Việc còn lại
 
-- Nhóm review và chốt REST contract Flask trước khi mở rộng endpoint.
-- Hoàn thiện các endpoint nghiệp vụ theo stored procedure hiện có.
+- Áp dụng `database/17_dashboard_api_procedures.sql` vào DB hiện hữu sau khi nhóm duyệt.
+- Chạy smoke test `health → login → nodes/alerts/tickets → telemetry → dashboard`.
 - Chạy kiểm thử trên máy thứ hai và ghi lại bằng chứng.
 - Hoàn thiện demo, video và báo cáo.
-- Không đưa backend Node.js/Next.js cá nhân vào nhánh chung nếu chưa có quyết
-  định kiến trúc mới của cả nhóm.
+- Bổ sung UI thao tác ticket/ack alert nếu cần cho demo.
