@@ -1,36 +1,112 @@
-# Trạng thái dự án
+# Trạng thái dự án AR-IMMS
 
-## Database scripts
+Cập nhật: 2026-11-15 (HQTCSDL-24 batch ingest)
 
-- Schema SQL Server có ERD/từ điển dữ liệu và phân tích 3NF tại `docs/ERD-DATA-DICTIONARY.md`.
-- `database/02_create_tables.sql` tạo 25 bảng; schema tách RBAC, metric/unit, marker coordinates và NIC thành các quan hệ riêng.
-- Khi nâng cấp schema cũ, script chuyển JSON/chuỗi trong transaction; dữ liệu không ánh xạ được gây lỗi và rollback thay vì bị bỏ âm thầm.
-- Script schema, index và database object hỗ trợ chạy lại; seed data thêm các hàng còn thiếu.
-- `database/06_verify_seed_data.sql` kiểm tra seed/schema; `database/07_test_normalized_schema.sql` kiểm tra SP với dữ liệu hợp lệ, đơn vị sai và metric không tồn tại.
-- Các hash mật khẩu trong seed data chỉ là placeholder; phải thay bằng hash hợp lệ trước khi dùng đăng nhập.
+## Hiện trạng thực tế
 
-## Kiểm tra và review
+### Đã có (đã xác minh chạy được)
+- Schema SQL Server 25 bảng: `database/01–07.sql`, `08_telemetry_wide...sql`
+- Bảng `telemetry_wide` + `node_latest` (script 08)
+- API SP vertical slice: `database/09_api_vertical_slice.sql`
+- Auth bcrypt demo + SHA-256 agent key seed
+- Alert threshold, deduplication, auto-resolve, node status, audit
+- Trigger audit, view `vw_hierarchy_tree` (script 04)
+- Docker Compose: SQL Server + SQL Agent, container healthy
+- Scripts `06`, `07`, `10_test_api_vertical_slice.sql`: PASS
+- Next.js API + dashboard, Collector Python + offline queue
+- E2E API: health 200, login 200, telemetry 201, nodes/alerts trả dữ liệu
+- Collector unit tests: 3/3 PASS; TypeScript check: PASS
 
-- SQL Server Express: thiết lập mới chạy script 01–05 hai lượt, sau đó `06` và `07` đều PASS.
-- SQL Server Express: tạo schema cũ từ commit trước, chạy nâng cấp 02 và seed/object mới hai lượt; dữ liệu quyền, tọa độ, metric và NIC được giữ lại; `06`/`07` đều PASS.
-- Hướng dẫn cài đồng nhất cho Windows, Docker, ODBC Driver 18, `.env`, URL-encode và kiểm tra `/health` trên hai máy: `docs/SETUP-WINDOWS.md`.
-- Script smoke test endpoint: `scripts/test-health.ps1`.
-- Compose bật SQL Server Agent, mount `backups/` vào container và giới hạn memory; `scripts/test-compose.ps1` kiểm tra Agent, backup/verify, host mount và hard limit.
-- Docker Compose smoke test đã chạy thành công hai lần với container SQL Server: Agent `Running`, SQL Server thấy giới hạn 3072 MB, container giới hạn 4 GiB, backup được verify và file hiện trên host.
-- Sau khi recreate container, database `AR_IMMS` vẫn còn; Flask `/health` kết nối Docker SQL Server thực tế và trả `healthy`.
-- Đã kiểm tra cú pháp PowerShell, lỗi kết nối trả 503 qua Flask test client, và URL-encode password có ký tự đặc biệt.
-- Review PR và chạy thử trên máy thứ hai còn chờ nhóm xác nhận.
+**Sprint 13–17/11 (đã hoàn thành):**
+- `database/11_ticket_management.sql`: 9 SP vòng đời ticket + seed marker QR, PASS
+- `database/12_test_ticket_management.sql`: toàn bộ PASS, non-destructive
+- `database/13_user_directory.sql`: `usp_list_technicians`, `usp_list_users` — PASS
+- `database/14_test_user_directory.sql`: toàn bộ PASS
+- API routes ticket: `GET/POST /api/tickets`, `GET /api/tickets/[id]`, assign, accept, notes, closure-request, review
+- API route marker: `GET /api/markers/[code]`
+- API route user: `GET /api/users/technicians`, `GET /api/users`
+- `web/lib/session.ts`: JWT vào sessionStorage, `decodeToken`, `decodeRole`
+- `web/lib/apiAuth.ts`: `authenticate`, `requireRoles`, `isPayload`
+- `web/lib/spErrors.ts`: map lỗi SP → HTTP 400/404/409/503
+- `web/lib/db.ts`: thêm `callSpMulti` cho SP nhiều result set
+- Dashboard (`/`): panel Ticket (tạo từ alert, gán technician, duyệt/từ chối closure)
+- Trang quét QR (`/scan`): camera + nhập tay, hiện node metrics, ticket của node, tiếp nhận / ghi chú / yêu cầu đóng
+- CSS responsive: layout 720px mobile cho ticket và scan
 
-## Tài liệu và quản lý công việc
+**HQTCSDL-24 — batch telemetry (2026-11-15):**
+- `database/23_ingest_telemetry_batch.sql`: `dbo.usp_ingest_telemetry` nhận JSON array, parse bằng `OPENJSON`, insert nhiều `telemetry_metrics` trong một transaction; lỗi giữa batch rollback toàn bộ. Timestamp yêu cầu ISO-8601 có timezone và lưu UTC `datetime2`.
+- `database/23_test_ingest_telemetry_batch.sql`: xác nhận một lần gọi ghi 3 metric; metric code sai ở phần tử sau không để lại hàng nào.
+- SQL Server: script 23 chạy hai lần thành công; test script 23 PASS cả hai ca.
+- Lệnh kiểm chứng: nạp `.env`, chạy `docker exec ... sqlcmd -b ... -i /dev/stdin < database/23_ingest_telemetry_batch.sql` hai lần, sau đó chạy cùng lệnh với `database/23_test_ingest_telemetry_batch.sql`.
+- SP batch là bổ sung DB riêng; API REST và hợp đồng `docs/API.md` không đổi, API hiện tại vẫn ingest snapshot qua `usp_record_telemetry_wide`.
 
-- Đã có mục lục tài liệu, phạm vi MoSCoW, quy ước kỹ thuật và hướng dẫn luồng
-  Kanban tại `docs/README.md`, `docs/SCOPE-MOSCOW.md`,
-  `docs/CONVENTIONS.md` và `docs/KANBAN-WORKFLOW.md`.
-- Backlog Jira CSV là kế hoạch dự kiến, không phải bằng chứng các Epic đã hoàn
-  thành. Cần xác nhận cấu hình board/WIP, mapping các cột `Labels` khi import
-  và phân công người thứ năm (CSV hiện có vai A–D).
-- Task khảo sát/chạy thử source tham khảo và ghi `SOURCE-AUDIT` trong backlog
-  chưa có kết quả được xác minh trong repo này; cần hoàn thành riêng trước khi
-  đánh dấu issue tương ứng là Done.
-- Cần nhóm rà soát WIP/DoR/DoD đề xuất và đối chiếu quy ước mục tiêu với hiện
-  trạng schema/script cũ trước khi áp dụng migration đổi tên/di chuyển script.
+**Sprint UI redesign (2026-11-13):**
+- `web/app/globals.css`: visual system sáng (nền `#f5f5f7`, card trắng, viền mảnh,
+  shadow mềm), typography system font, bo góc 18–28px, hover/focus rõ ràng.
+- Dashboard và `/scan` dùng chung token màu/typography; bỏ nền tối và font
+  `DM Sans`/`Space Grotesk`/`DM Mono`.
+- Motion: một nhịp `rise` khi panel xuất hiện; hover lift nhẹ trên button;
+  `prefers-reduced-motion` tắt toàn bộ animation/transition.
+- Responsive: 800px và 520px cho dashboard; 520px/380px cho trang scan.
+- Giữ nguyên API contract, JWT, role check, polling 5 giây và toàn bộ SP.
+- `cd web && npm exec -- tsc --noEmit` → PASS (không output).
+- `npm run build` vẫn fail ở Turbopack/`powershell-utils` (blocker cũ, không do UI).
+
+### Chưa có / còn thiếu
+- SQL Login/User/Role/GRANT (phân quyền DB-level)
+- Đo hiệu năng (index, partition, STATISTICS IO)
+- Backup/restore có bằng chứng
+- E2E demo evidence, báo cáo, video
+- Production build cần xử lý Turbopack/PowerShell environment blocker
+- Push `53fd62a` lên `origin/dev-hoangminh`
+
+## Dữ liệu mẫu cục bộ (không commit vào git)
+
+| Tài khoản | Mật khẩu demo | Ghi chú |
+|---|---|---|
+| admin | `demo123` | hash bcrypt seed ở script 09 |
+| operator | `demo123` | — |
+| technician | `demo123` | — |
+
+Agent key demo (node 1): `arimms-demo-agent-key-2026`
+(SHA-256 `749fc7b2…11c646bc`, seed ở script 09. Đổi trước khi dùng ngoài máy local.)
+
+Lưu ý kết nối: SQL Server publish ra host port **1434** (`MSSQL_PORT` trong `.env`),
+không phải 1433. `web/.env.local` phải đặt `DB_SERVER=127.0.0.1`, `DB_PORT=1434`.
+
+## Lệnh kiểm chứng
+
+```bash
+# Áp DB scripts 11-14
+set -a && . ./.env && set +a && export MSYS_NO_PATHCONV=1
+docker exec -i ar-imms-sqlserver /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -i /dev/stdin < database/11_ticket_management.sql
+docker exec -i ar-imms-sqlserver /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -i /dev/stdin < database/12_test_ticket_management.sql
+docker exec -i ar-imms-sqlserver /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -i /dev/stdin < database/13_user_directory.sql
+docker exec -i ar-imms-sqlserver /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -i /dev/stdin < database/14_test_user_directory.sql
+```
+
+```bash
+# TypeScript (chạy trong web/)
+cd web && npm exec -- tsc --noEmit
+```
+
+```bash
+# E2E ticket lifecycle
+TOKEN=$(curl -sS -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{"username":"operator","password":"demo123"}' | node -pe "JSON.parse(require('fs').readFileSync(0)).token")
+curl -sS -X POST localhost:3000/api/tickets -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"node_id":1,"title":"CPU cao","description":"Kiểm tra tản nhiệt","priority":"HIGH"}'
+curl -sS localhost:3000/api/tickets -H "Authorization: Bearer $TOKEN"
+curl -sS localhost:3000/api/users/technicians -H "Authorization: Bearer $TOKEN"
+curl -sS "localhost:3000/api/markers/AR-IMMS-NODE-1" -H "Authorization: Bearer $TOKEN"
+```
+
+```bash
+# Kiểm tra audit log ticket
+docker exec -i ar-imms-sqlserver /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d AR_IMMS -Q "SELECT action, COUNT(*) c FROM dbo.audit_logs WHERE target_entity=N'TICKET' GROUP BY action ORDER BY action;"
+```
+
+## Việc cần làm tiếp (backlog)
+
+1. TypeScript check `cd web && npm exec -- tsc --noEmit`
+2. SQL Login/GRANT, index/partition, backup/restore
+3. Push commit lên `origin/dev-hoangminh`
+4. E2E video demo, báo cáo cuối
