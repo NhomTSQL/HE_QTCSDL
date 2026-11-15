@@ -2,6 +2,7 @@
 -- AR-IMMS: Schema Tables cho SQL Server
 -- T-SQL schema cho SQL Server
 -- 25 bảng: roles, permissions, role_permissions, users, notifications,
+-- Node rack slots are unique per rack (rack_id, rack_position_u).
 --          sites, rooms, racks, nodes,
 --          containers, markers, data_collector_agents, telemetry_metrics,
 --          alert_thresholds, alerts, tickets, ticket_notes,
@@ -164,8 +165,29 @@ CREATE TABLE nodes (
 
     CONSTRAINT CK_nodes_status CHECK (
         status IN ('ONLINE', 'WARNING', 'CRITICAL', 'UNAVAILABLE', 'MAINTENANCE')
-    )
+    ),
+    CONSTRAINT UQ_nodes_rack_position UNIQUE (rack_id, rack_position_u)
 );
+END;
+GO
+
+-- Ensure existing databases receive the same rack-slot uniqueness rule as fresh installs.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.nodes')
+      AND name = N'UQ_nodes_rack_position'
+      AND type = N'UQ'
+)
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM dbo.nodes
+        GROUP BY rack_id, rack_position_u
+        HAVING COUNT_BIG(*) > 1
+    )
+        THROW 50002, N'Cannot add UQ_nodes_rack_position: duplicate rack slots already exist.', 1;
+
+    ALTER TABLE dbo.nodes
+        ADD CONSTRAINT UQ_nodes_rack_position UNIQUE (rack_id, rack_position_u);
 END;
 GO
 

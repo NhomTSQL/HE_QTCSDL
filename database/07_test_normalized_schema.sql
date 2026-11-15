@@ -93,4 +93,28 @@ BEGIN CATCH
 END CATCH;
 
 PRINT N'PASS: telemetry metric type foreign key rejects an unknown metric.';
+
+-- Test case: duplicate rack slot within one rack must fail with SQL Server
+-- unique-key error 2601/2627; the attempted insert is rolled back.
+BEGIN TRANSACTION;
+BEGIN TRY
+    DECLARE @rack_id INT, @rack_position_u INT;
+    SELECT TOP (1) @rack_id = rack_id, @rack_position_u = rack_position_u
+    FROM dbo.nodes
+    ORDER BY id;
+
+    INSERT INTO dbo.nodes (rack_id, name, hostname, ip_address, rack_position_u)
+    VALUES (@rack_id, N'__dup_slot_test__', N'__dup_slot_test__', N'0.0.0.0', @rack_position_u);
+
+    THROW 51045, N'Expected duplicate (rack_id, rack_position_u) to be rejected.', 1;
+END TRY
+BEGIN CATCH
+    SET @test_error_number = ERROR_NUMBER();
+    IF XACT_STATE() <> 0
+        ROLLBACK TRANSACTION;
+    IF @test_error_number NOT IN (2601, 2627)
+        THROW;
+END CATCH;
+
+PRINT N'PASS: nodes reject duplicate (rack_id, rack_position_u).';
 GO
