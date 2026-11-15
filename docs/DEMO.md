@@ -1,47 +1,71 @@
-# Kịch bản demo AR-IMMS (5 phút)
+# Kịch bản demo AR-IMMS
 
-Mục tiêu: chứng minh luồng end-to-end từ collector → DB → web → ticket → audit.
+Mục tiêu: chứng minh luồng `collector → Flask API → SQL Server`.
 
 ## Chuẩn bị
-- SQL Server Docker đang chạy, schema + seed đã có
-- web (Next.js) đang chạy trên localhost:3000
-- Collector chạy trên ít nhất 2 máy (hoặc 2 terminal cùng máy, khác node_id)
 
-## Bước 1: Hiện trạng bình thường
-- Mở web, đăng nhập bằng tài khoản Operator
-- Thấy cây Site → Room → Rack → Node với số liệu sống (CPU, RAM, disk)
-- Node status = OK (xanh), số liệu cập nhật mỗi 5 giây
+- SQL Server Docker đang ở trạng thái `healthy`.
+- Đã chạy schema, seed và `database/08_dev_node_api_key.sql`.
+- Đã cài dependency trong `backend/requirements.txt`.
+- Có `.env` cục bộ với `DATABASE_URL`.
 
-## Bước 2: Kích hoạt alert
-- **Cách A**: Ép CPU > 90% trên máy collector (chạy stress test hoặc vòng lặp vô hạn)
-- **Cách B**: Tắt collector 90 giây → node chuyển UNAVAILABLE
-- Trên web: alert xuất hiện (đỏ), node status đổi sang CRITICAL hoặc UNAVAILABLE
-- **Quan trọng**: gửi tiếp cùng metric vượt ngưỡng → KHÔNG tạo thêm alert trùng
+## Bước 1: Khởi động Flask
 
-## Bước 3: Xử lý ticket
-- Operator tạo ticket từ alert bằng nút `+ Ticket`, chọn priority rồi bấm `Tạo ticket`
-- Operator chọn technician trong dropdown, bấm `Gán`
-- Đăng nhập bằng tài khoản Technician (`technician` / `demo123`)
-- Technician mở `/scan`, nhập mã `AR-IMMS-NODE-1` nếu cần, thấy ticket của node
-- Bấm `Tiếp nhận` để chuyển ticket sang `IN_PROGRESS`
+```powershell
+.\.venv\Scripts\python.exe backend/app.py
+```
 
-## Bước 4: Quét QR trên điện thoại
-- Mở web trên điện thoại (cùng LAN, truy cập qua IP:3000)
-- Vào trang `/scan`, quét mã QR dán trên node hoặc nhập mã `AR-IMMS-NODE-1`
-- Thấy telemetry mới nhất của node đó (CPU, RAM, disk, status)
-- Ghi chú vào ticket bằng form `Ghi chú kiểm tra…`, gửi yêu cầu đóng ticket bằng form `Yêu cầu đóng`
+Kiểm tra health:
 
-## Bước 5: Duyệt đóng ticket
-- Đăng nhập lại bằng Operator
-- Operator chọn `Xem & Duyệt`, xem nội dung yêu cầu rồi bấm `Duyệt đóng` (hoặc `Từ chối`)
-- Khi duyệt, ticket chuyển sang `CLOSED` và alert liên kết chuyển `RESOLVED`
+```powershell
+Invoke-RestMethod http://localhost:5000/health
+```
 
-## Bước 6: Audit log
-- Xem audit log: thấy các sự kiện đã diễn ra (alert tạo, ticket tạo, trạng thái
-  đổi, ticket đóng) với đúng thời gian và người thực hiện
+Kết quả mong đợi:
+
+```json
+{"status":"healthy","database":"connected"}
+```
+
+## Bước 2: Gửi telemetry hợp lệ
+
+```powershell
+$body = @{
+  metric_type = "cpu_usage_percent"
+  value = 42.5
+  unit = "%"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:5000/telemetry `
+  -Headers @{ "X-API-Key" = "demo-node-key-001" } `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Kết quả mong đợi là HTTP `201` với `status=recorded`.
+
+## Bước 3: Kiểm tra lỗi và transaction
+
+- Không có `X-API-Key` hoặc key sai: HTTP `401`.
+- Body không phải JSON object hoặc thiếu trường: HTTP `400`.
+- `node_id` không khớp agent: HTTP `403`.
+- Metric/unit không hợp lệ: HTTP `422`.
+- Kiểm tra `telemetry_metrics` để xác nhận request lỗi không tạo thêm dòng.
+
+## Bước 4: Chạy test tự động
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s backend -p "test_*.py" -v
+```
+
+Các ca chính gồm API key hợp lệ, key sai, thiếu key, node không khớp,
+unit sai và body sai.
 
 ## Phương án dự phòng
-- Quay video demo trước ngày 28/11
-- Nếu collector không chạy trên 2 máy thật: dùng 2 terminal cùng máy, khác NODE_ID
-- Nếu QR camera không hoạt động trên mạng hội trường: chiếu video quay sẵn phần QR
-- Nếu mạng hội trường hỏng: chạy toàn bộ trên localhost/hotspot riêng
+
+- Nếu collector không chạy, gửi request bằng PowerShell như bước 2.
+- Nếu SQL Server chưa healthy, kiểm tra `docker compose ps` và log container.
+- Không dùng backend Node.js/Next.js trong demo nhóm khi chưa được nhóm chốt
+  lại kiến trúc.
