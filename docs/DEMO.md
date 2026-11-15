@@ -19,20 +19,22 @@ Mục tiêu: chứng minh luồng end-to-end từ collector → DB → web → t
 - **Quan trọng**: gửi tiếp cùng metric vượt ngưỡng → KHÔNG tạo thêm alert trùng
 
 ## Bước 3: Xử lý ticket
-- Operator tạo ticket từ alert, giao cho Technician
-- Đăng nhập bằng tài khoản Technician
-- Technician thấy ticket được giao, mở chi tiết
+- Operator tạo ticket từ alert bằng nút `+ Ticket`, chọn priority rồi bấm `Tạo ticket`
+- Operator chọn technician trong dropdown, bấm `Gán`
+- Đăng nhập bằng tài khoản Technician (`technician` / `demo123`)
+- Technician mở `/scan`, nhập mã `AR-IMMS-NODE-1` nếu cần, thấy ticket của node
+- Bấm `Tiếp nhận` để chuyển ticket sang `IN_PROGRESS`
 
 ## Bước 4: Quét QR trên điện thoại
 - Mở web trên điện thoại (cùng LAN, truy cập qua IP:3000)
-- Vào trang /scan, quét mã QR dán trên node
+- Vào trang `/scan`, quét mã QR dán trên node hoặc nhập mã `AR-IMMS-NODE-1`
 - Thấy telemetry mới nhất của node đó (CPU, RAM, disk, status)
-- Ghi chú vào ticket, gửi yêu cầu đóng ticket
+- Ghi chú vào ticket bằng form `Ghi chú kiểm tra…`, gửi yêu cầu đóng ticket bằng form `Yêu cầu đóng`
 
 ## Bước 5: Duyệt đóng ticket
 - Đăng nhập lại bằng Operator
-- Operator duyệt yêu cầu đóng ticket
-- Ticket chuyển sang CLOSED
+- Operator chọn `Xem & Duyệt`, xem nội dung yêu cầu rồi bấm `Duyệt đóng` (hoặc `Từ chối`)
+- Khi duyệt, ticket chuyển sang `CLOSED` và alert liên kết chuyển `RESOLVED`
 
 ## Bước 6: Audit log
 - Xem audit log: thấy các sự kiện đã diễn ra (alert tạo, ticket tạo, trạng thái

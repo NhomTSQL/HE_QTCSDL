@@ -8,8 +8,9 @@ telemetry của Node, phát hiện cảnh báo, hỗ trợ xử lý ticket và t
 trên web.
 
 Đây là đồ án môn Hệ quản trị CSDL: SQL Server là cơ sở dữ liệu triển khai và
-chiều sâu thiết kế/vận hành CSDL là trọng tâm. Backend Flask, web Next.js và
-collector phục vụ việc trình diễn luồng nghiệp vụ qua CSDL.
+chiều sâu thiết kế/vận hành CSDL là trọng tâm. Next.js (web + API routes),
+mssql (tedious), Python + psutil (collector) phục vụ việc trình diễn luồng nghiệp
+vụ qua CSDL.
 
 ## Ràng buộc và cách đọc phạm vi
 
