@@ -111,7 +111,7 @@ Mở và thực thi lần lượt các script trong SSMS:
 2. `database/02_create_tables.sql`
 3. `database/03_seed_data.sql`
 4. `database/04_procedures_triggers_views.sql`
-5. `database/05_indexes.sql`
+5. `database/05_retention_policy.sql`
 6. `database/08_dev_node_api_key.sql`
 7. `database/09_auth_procedures.sql`
 8. `database/16_alert_dedupe.sql`

@@ -20,7 +20,7 @@ Xem `docs/SCOPE-MOSCOW.md`. Đã cắt: AR thật/ArUco, mTLS, PUE, multi-site, 
 Xem `docs/CONVENTIONS.md` (PascalCase số ít, `usp_/ufn_/vw_/trg_`, UTC `datetime2(0)`). Script DB đánh số trong `/db`: `001_...sql`, chạy lại được từ đầu.
 
 ## Lộ trình
-6 tuần, đóng băng phạm vi và schema Must ở cuối W4. Xem `docs/SPRINT-PLAN.md`; tiến độ hiện tại ở `docs/STATUS.md`.
+6 tuần, đóng băng phạm vi và schema Must ở cuối W4. Nhóm theo dõi công việc bằng Kanban, xem `docs/KANBAN-WORKFLOW.md`; tiến độ hiện tại ở `docs/STATUS.md`.
 
 ## Cách làm việc với Claude
 - Trước thay đổi lớn: đưa kế hoạch ngắn để nhóm duyệt.

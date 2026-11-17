@@ -18,17 +18,22 @@ BEGIN
 
     DECLARE @cutoff DATETIME2 = DATEADD(DAY, -@retention_days, SYSUTCDATETIME());
     DECLARE @deleted_count INT = 0;
+    DECLARE @batch_count INT = 0;
 
-    -- Xóa theo batch 10,000 row để tránh lock table quá lâu
+    -- Xóa theo batch 10,000 row để tránh lock table quá lâu.
+    -- Lưu ý: phải chụp @@ROWCOUNT ngay sau DELETE vào @batch_count. Nếu đọc
+    -- @@ROWCOUNT sau một câu SET thì giá trị đã bị SET ghi đè thành 1, và vòng
+    -- lặp sẽ dừng sau batch đầu tiên dù còn dữ liệu cũ.
     WHILE 1 = 1
     BEGIN
         DELETE TOP (10000)
         FROM telemetry_metrics
         WHERE timestamp < @cutoff;
 
-        SET @deleted_count = @deleted_count + @@ROWCOUNT;
+        SET @batch_count = @@ROWCOUNT;
+        SET @deleted_count = @deleted_count + @batch_count;
 
-        IF @@ROWCOUNT < 10000
+        IF @batch_count < 10000
             BREAK;
     END
 

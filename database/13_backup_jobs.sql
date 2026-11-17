@@ -6,7 +6,7 @@
 --   Log   : mỗi 30 phút                (mất dữ liệu tối đa ~30 phút)
 -- Mỗi job làm 1 batch: BACKUP ... WITH CHECKSUM rồi RESTORE VERIFYONLY cùng file,
 -- nên backup hỏng sẽ làm job FAIL thay vì im lặng
--- Yêu cầu: đã chạy 09_backup_recovery_model.sql; Agent bật (MSSQL_AGENT_ENABLED).
+-- Yêu cầu: đã chạy 12_backup_recovery_model.sql; Agent bật (MSSQL_AGENT_ENABLED).
 -- ============================================================================
 USE msdb;
 GO
