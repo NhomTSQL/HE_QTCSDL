@@ -72,10 +72,28 @@ npm run dev
 Mở `http://localhost:3000`, đăng nhập bằng tài khoản demo đã đặt mật khẩu ở
 `scripts/set_dev_passwords.py`.
 
+## Giao diện dashboard
+
+Bản redesign theo phong cách Apple đã áp dụng cho `web/`:
+
+- `web/app/globals.css`: design system dark dùng vật liệu trong mờ
+  (`backdrop-filter`), system color của iOS, type scale SF (tracking âm khi
+  chữ lớn), bo góc lớn, easing `--ease-spring` và `--ease-out`.
+- Thanh công cụ dạng material nổi (`backdrop-filter: blur(28px)`), metric tile
+  có icon màu theo trạng thái, thanh đo CPU/RAM/Disk, status pill có chấm màu
+  phát sáng, chip người dùng hiển thị role.
+- Tôn trọng `prefers-reduced-motion`, `prefers-reduced-transparency` và
+  `prefers-contrast: more`.
+- `web/app/page.tsx` giữ nguyên contract API (`/api/auth/login` → `access_token`,
+  `/api/nodes`, `/api/alerts`), chỉ đổi lớp trình bày.
+
 ## Việc còn lại
 
-- Áp dụng `database/17_dashboard_api_procedures.sql` vào DB hiện hữu sau khi nhóm duyệt.
-- Chạy smoke test `health → login → nodes/alerts/tickets → telemetry → dashboard`.
-- Chạy kiểm thử trên máy thứ hai và ghi lại bằng chứng.
+- Bootstrap MVP đã chạy trên SQL Server `localhost:11433`: agent demo ACTIVE, mật khẩu dev đã đặt cục bộ.
+- Backend test suite: **20/20 PASS** (`unittest`, DB thật).
+- Flask test-client smoke: health/login/me/nodes/alerts/tickets/telemetry **PASS**.
+- HTTP server đang chạy từ process cũ thiếu `JWT_SECRET_KEY`, nên `/auth/login` hiện trả 500; cần restart Flask sau khi nạp `.env` mới.
+- Chạy smoke test HTTP sau restart Flask; sau đó kiểm tra dashboard Next.js.
+- Kiểm thử trên máy thứ hai và ghi lại bằng chứng.
 - Hoàn thiện demo, video và báo cáo.
 - Bổ sung UI thao tác ticket/ack alert nếu cần cho demo.
