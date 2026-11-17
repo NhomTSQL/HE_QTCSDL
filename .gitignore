@@ -30,3 +30,7 @@ node_modules/
 .vscode/settings.json
 
 test.*
+
+# Collector local secrets and offline queue
+collector/.env
+telemetry-queue*.jsonl
