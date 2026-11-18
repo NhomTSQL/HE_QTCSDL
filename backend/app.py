@@ -11,6 +11,7 @@ from sqlalchemy.exc import DBAPIError
 
 from extensions import db
 from auth import auth_bp
+import audit_context  # noqa: F401  (dang ky su kien after_begin)
 from dashboard_api import api_bp
 
 
