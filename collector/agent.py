@@ -8,11 +8,11 @@ import os
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Iterable, List, Optional
+from typing import Any, Deque, Dict, Iterable, List, Optional, Tuple
 
 import requests
 
-from metrics import sample_metrics
+from metrics import sample_containers, sample_metrics
 
 LOG = logging.getLogger("ar-imms-collector")
 
@@ -40,6 +40,10 @@ class Collector:
         queue_file: str = "telemetry-queue.jsonl",
         queue_max: int = 1000,
         session: Optional[requests.Session] = None,
+        containers_url: Optional[str] = None,
+        sync_containers: bool = False,
+        batch_url: Optional[str] = None,
+        use_batch: bool = False,
     ):
         if not api_url or not api_key or node_id <= 0:
             raise ValueError("API_URL, API_KEY and positive NODE_ID are required")
@@ -50,6 +54,10 @@ class Collector:
         self.queue_path = Path(queue_file)
         self.queue_max = max(1, queue_max)
         self.session = session or requests.Session()
+        self.containers_url = containers_url or f"{self.api_url.rstrip('/')}/containers"
+        self.sync_containers = sync_containers
+        self.batch_url = batch_url or f"{self.api_url.rstrip('/')}/batch"
+        self.use_batch = use_batch
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=self.queue_max)
         self._load_queue()
 
@@ -76,32 +84,38 @@ class Collector:
                 stream.write(json.dumps(item, separators=(",", ":")) + "\n")
         tmp.replace(self.queue_path)
 
+    def _post_with_retry(self, url: str, body: Any) -> Tuple[str, int]:
+        """Post JSON body with exponential backoff; return (outcome, status_code)."""
+        delay = 0.5
+        last_code = 0
+        for attempt in range(4):
+            try:
+                response = self.session.post(
+                    url,
+                    json=body,
+                    headers={"X-API-Key": self.api_key},
+                    timeout=5,
+                )
+                last_code = response.status_code
+                if 200 <= last_code < 300:
+                    return "ok", last_code
+                if 400 <= last_code < 500:
+                    LOG.warning("Rejected payload (%s): %s", last_code, response.text)
+                    return "rejected", last_code
+            except requests.RequestException as exc:
+                LOG.warning("Telemetry request failed (attempt %d): %s", attempt + 1, exc)
+            if attempt < 3:
+                time.sleep(delay)
+                delay = min(delay * 2, 4.0)
+        return "failed", last_code
+
     def _send(self, payload: Dict[str, Any]) -> str:
         """Gui 1 payload. Tra ve "ok", "rejected" (4xx, loi du lieu) hoac "failed" (mang/5xx).
 
         Phan biet 3 ket qua nay de payload bi Flask tu choi (4xx) khong bi day vao
         queue gui lai vo han, con loi tam thoi (mat mang, 5xx) thi van duoc retry.
         """
-        delay = 0.5
-        for attempt in range(4):
-            try:
-                response = self.session.post(
-                    self.api_url,
-                    json=payload,
-                    headers={"X-API-Key": self.api_key},
-                    timeout=5,
-                )
-                if 200 <= response.status_code < 300:
-                    return "ok"
-                if 400 <= response.status_code < 500:
-                    LOG.warning("Rejected payload (%s): %s", response.status_code, response.text)
-                    return "rejected"
-            except requests.RequestException as exc:
-                LOG.warning("Telemetry request failed (attempt %d): %s", attempt + 1, exc)
-            if attempt < 3:
-                time.sleep(delay)
-                delay = min(delay * 2, 4.0)
-        return "failed"
+        return self._post_with_retry(self.api_url, payload)[0]
 
     def flush_queue(self) -> None:
         while self.queue:
@@ -130,11 +144,44 @@ class Collector:
         return False
 
     def submit_batch(self, payloads: Iterable[Dict[str, Any]]) -> int:
-        sent = 0
-        for item in payloads:
-            if self.submit(item):
-                sent += 1
-        return sent
+        items = list(payloads)
+        if not items:
+            return 0
+        if not self.use_batch:
+            return sum(1 for item in items if self.submit(item))
+
+        self.flush_queue()
+        if self.queue:
+            self.queue.extend(items)
+            self._save_queue()
+            return 0
+
+        status, code = self._post_with_retry(self.batch_url, {"metrics": items})
+        if status == "ok":
+            return len(items)
+        if code in (404, 405):
+            return sum(1 for item in items if self.submit(item))
+        if status == "rejected":
+            return 0
+
+        self.queue.extend(items)
+        self._save_queue()
+        return 0
+
+    def submit_containers(self, containers: List[Dict[str, Any]]) -> bool:
+        if not containers:
+            return True
+        try:
+            response = self.session.post(
+                self.containers_url,
+                json={"containers": containers},
+                headers={"X-API-Key": self.api_key},
+                timeout=5,
+            )
+            return 200 <= response.status_code < 300
+        except requests.RequestException as exc:
+            LOG.warning("Container telemetry request failed: %s", exc)
+            return False
 
     def run_forever(self) -> None:
         LOG.info("Starting collector node_id=%d -> %s (every %ds)", self.node_id, self.api_url, self.interval)
@@ -142,8 +189,15 @@ class Collector:
             start = time.monotonic()
             batch: List[Dict[str, Any]] = sample_metrics(self.node_id)
             sent = self.submit_batch(batch)
+            c_sent = 0
+            if self.sync_containers:
+                containers = sample_containers(self.node_id)
+                if containers and self.submit_containers(containers):
+                    c_sent = len(containers)
             summary = ", ".join(f"{m['metric_type']}={m['value']}{m['unit']}" for m in batch)
-            LOG.info("[node=%d] Sent %d/%d metrics (%s)", self.node_id, sent, len(batch), summary)
+            LOG.info("[node=%d] Sent %d/%d metrics (%s)%s",
+                     self.node_id, sent, len(batch), summary,
+                     f" + {c_sent} containers" if self.sync_containers else "")
             remaining = self.interval - (time.monotonic() - start)
             if remaining > 0:
                 time.sleep(remaining)
@@ -166,8 +220,16 @@ def main() -> int:
         interval = int(os.environ.get("INTERVAL_SECONDS", "5"))
         queue_file = os.environ.get("QUEUE_FILE", f"telemetry-queue-node{node_id}.jsonl")
         queue_max = int(os.environ.get("QUEUE_MAX_ITEMS", "1000"))
+        sync_containers = os.environ.get("SYNC_CONTAINERS", "1").strip().lower() in {"1", "true", "yes"}
+        containers_url = os.environ.get("CONTAINERS_API_URL")
+        use_batch = os.environ.get("USE_BATCH", "1").strip().lower() in {"1", "true", "yes"}
+        batch_url = os.environ.get("BATCH_API_URL")
 
-        collector = Collector(api_url, api_key, node_id, interval, queue_file, queue_max)
+        collector = Collector(
+            api_url, api_key, node_id, interval, queue_file, queue_max,
+            containers_url=containers_url, sync_containers=sync_containers,
+            batch_url=batch_url, use_batch=use_batch,
+        )
         collector.run_forever()
     except KeyboardInterrupt:
         LOG.info("Collector stopped by user")

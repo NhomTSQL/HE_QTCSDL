@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'AR-IMMS · Command Center',
-  description: 'Giám sát và bảo trì hạ tầng Data Center',
+  description: 'AR-Integrated Infrastructure Monitoring and Maintenance System',
 };
 
 export const viewport: Viewport = {
@@ -14,5 +14,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="vi"><body>{children}</body></html>;
+  return <html lang="en"><body>{children}</body></html>;
 }

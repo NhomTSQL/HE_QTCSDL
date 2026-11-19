@@ -11,13 +11,13 @@ Hệ thống giám sát và bảo trì hạ tầng Data Center (Mini Data Center
 - Source khóa trước chỉ là **tham chiếu**. Thiết kế và code tầng DB do nhóm tự làm. Không copy tài liệu/báo cáo của họ, không đưa tên/MSSV người khác vào repo.
 
 ## Stack
-Flask (backend) · Next.js (web) · Python + psutil (collector) · SQL Server Developer · Socket.IO · JWT.
+Flask (backend) · Next.js (web + Mobile Web AR/QR) · Python + psutil (collector) · SQL Server Developer · JWT · Song ngữ EN/VI.
 
 ## Phạm vi
-Xem `docs/SCOPE-MOSCOW.md`. Đã cắt: AR thật/ArUco, mTLS, PUE, multi-site, hash-chain audit, mobile native. Mobile = web quét QR.
+Xem `docs/SCOPE-MOSCOW.md`. Đã triển khai đầy đủ theo đề cương: Digital Twin 5 cấp (`Site → Room → Rack → Node → Container`), Mobile Web AR/QR Scanner với HUD overlay, PUE & Capacity Analytics, quản lý Tài sản & Bảo hành, Admin & Immutable Audit. Đã cắt: ứng dụng React Native/AR 3D tách rời, mTLS, multi-site, hash-chain audit.
 
 ## Quy ước
-Xem `docs/CONVENTIONS.md` (PascalCase số ít, `usp_/ufn_/vw_/trg_`, UTC `datetime2(0)`). Script DB đánh số trong `/db`: `001_...sql`, chạy lại được từ đầu.
+Xem `docs/CONVENTIONS.md` (PascalCase số ít, `usp_/ufn_/vw_/trg_`, UTC `datetime2(0)`). Script DB đánh số trong `database/`: `01_...sql` đến `21_...sql`, chạy lại được từ đầu.
 
 ## Lộ trình
 6 tuần, đóng băng phạm vi và schema Must ở cuối W4. Nhóm theo dõi công việc bằng Kanban, xem `docs/KANBAN-WORKFLOW.md`; tiến độ hiện tại ở `docs/STATUS.md`.

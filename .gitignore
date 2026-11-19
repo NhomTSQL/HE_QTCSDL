@@ -12,10 +12,12 @@ venv/
 # Node
 node_modules/
 .next/
+*.tsbuildinfo
 
 # Local database files
 *.db
 /backups/*.bak
+/backups/*.trn
 
 # Keep SQL scripts and database documentation under version control
 /database/*
@@ -34,3 +36,6 @@ test.*
 # Collector local secrets and offline queue
 collector/.env
 telemetry-queue*.jsonl
+
+# Local Claude worktrees and settings
+.claude/
