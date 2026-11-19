@@ -282,13 +282,22 @@ CREATE TABLE telemetry_metrics (
     node_id         INT                  NOT NULL,
     metric_type_id  INT                  NOT NULL,
     value           FLOAT                NOT NULL,
-    timestamp       DATETIME2            NOT NULL DEFAULT SYSUTCDATETIME(),
+    collected_at    DATETIME2            NOT NULL DEFAULT SYSUTCDATETIME(),
 
     CONSTRAINT FK_telemetry_node FOREIGN KEY (node_id)
         REFERENCES nodes(id) ON DELETE CASCADE,
     CONSTRAINT FK_telemetry_metric_type FOREIGN KEY (metric_type_id)
         REFERENCES metric_types(id)
 );
+END;
+GO
+
+-- HQTCSDL-36: cột thời gian của telemetry_metrics đổi từ `timestamp` thành `collected_at`
+-- (DB cũ đã có cột `timestamp` thì đổi tên tại chỗ; DB mới đã tạo sẵn `collected_at`).
+IF COL_LENGTH(N'dbo.telemetry_metrics', N'timestamp') IS NOT NULL
+   AND COL_LENGTH(N'dbo.telemetry_metrics', N'collected_at') IS NULL
+BEGIN
+    EXEC sys.sp_rename N'dbo.telemetry_metrics.timestamp', N'collected_at', N'COLUMN';
 END;
 GO
 
@@ -847,12 +856,12 @@ GO
 -- Time-series indexes are created after legacy columns have been migrated.
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_telemetry_node_time' AND object_id = OBJECT_ID(N'dbo.telemetry_metrics'))
 BEGIN
-    CREATE NONCLUSTERED INDEX IX_telemetry_node_time ON telemetry_metrics(node_id, timestamp DESC);
+    CREATE NONCLUSTERED INDEX IX_telemetry_node_time ON telemetry_metrics(node_id, collected_at DESC);
 END;
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_telemetry_metric_type_time' AND object_id = OBJECT_ID(N'dbo.telemetry_metrics'))
 BEGIN
-    CREATE NONCLUSTERED INDEX IX_telemetry_metric_type_time ON telemetry_metrics(metric_type_id, timestamp DESC);
+    CREATE NONCLUSTERED INDEX IX_telemetry_metric_type_time ON telemetry_metrics(metric_type_id, collected_at DESC);
 END;
 GO
 

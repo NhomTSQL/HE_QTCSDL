@@ -24,7 +24,7 @@ BEGIN
     BEGIN
         DELETE TOP (10000)
         FROM telemetry_metrics
-        WHERE timestamp < @cutoff;
+        WHERE collected_at < @cutoff;
 
         SET @deleted_count = @deleted_count + @@ROWCOUNT;
 

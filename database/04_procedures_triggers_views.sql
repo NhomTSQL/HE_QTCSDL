@@ -95,12 +95,12 @@ SELECT
      FROM telemetry_metrics telemetry
      INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
      WHERE metric.code = 'cpu_usage_percent'
-       AND telemetry.timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS avg_cpu_5min,
+       AND telemetry.collected_at >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS avg_cpu_5min,
     (SELECT MAX(telemetry.value)
      FROM telemetry_metrics telemetry
      INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
      WHERE metric.code = 'temperature_celsius'
-       AND telemetry.timestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS max_temp_5min,
+       AND telemetry.collected_at >= DATEADD(MINUTE, -5, SYSUTCDATETIME())) AS max_temp_5min,
     (SELECT COUNT(*) FROM alerts WHERE status = 'OPEN') AS open_alerts,
     (SELECT COUNT(*) FROM tickets WHERE status NOT IN ('CLOSED')) AS active_tickets;
 GO
@@ -116,15 +116,15 @@ WITH RankedMetrics AS (
         metric.code AS metric_type,
         telemetry.value,
         metric.unit,
-        telemetry.timestamp,
+        telemetry.collected_at,
         ROW_NUMBER() OVER (
             PARTITION BY telemetry.node_id, telemetry.metric_type_id
-            ORDER BY telemetry.timestamp DESC
+            ORDER BY telemetry.collected_at DESC
         ) AS rn
     FROM telemetry_metrics telemetry
     INNER JOIN metric_types metric ON metric.id = telemetry.metric_type_id
 )
-SELECT node_id, metric_type, value, unit, timestamp
+SELECT node_id, metric_type, value, unit, collected_at
 FROM RankedMetrics
 WHERE rn = 1;
 GO
@@ -175,7 +175,7 @@ BEGIN
         THROW 51031, N'Telemetry unit does not match the metric type.', 1;
 
     -- 1. Lưu telemetry
-    INSERT INTO telemetry_metrics (node_id, metric_type_id, value, timestamp)
+    INSERT INTO telemetry_metrics (node_id, metric_type_id, value, collected_at)
     VALUES (@node_id, @metric_type_id, @value, SYSUTCDATETIME());
 
     -- 2. Cập nhật last_ping_at trên node
