@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { callBackend } from '@/lib/backend';
 
 export const runtime = 'nodejs';

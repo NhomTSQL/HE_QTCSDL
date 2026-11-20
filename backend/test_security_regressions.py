@@ -168,11 +168,15 @@ class SecurityTests(unittest.TestCase):
         response = self.client.post("/auth/login", data=b"x" * (1024 * 1024 + 1),
                                     content_type="application/json")
         self.assertEqual(response.status_code, 413)
+        self.assertTrue(response.is_json)
+        self.assertEqual(response.get_json(), {"error": "Payload too large."})
 
     def test_auth_responses_are_not_cached(self):
         response = self.client.get("/auth/me")
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
 
 
 if __name__ == "__main__":

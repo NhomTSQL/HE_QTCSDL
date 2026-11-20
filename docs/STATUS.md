@@ -69,10 +69,10 @@ Python Collector (Batch + Offline Queue) ─────────────
     - Đọc snapshot mới nhất: `[1A]` legacy `ROW_NUMBER` (Scan count 20, `4,747` logical reads, `9,456` read-ahead, `1,653 ms` CPU / `915 ms` elapsed) → `[1B]` O(1) `dbo.node_latest_metrics` (Scan count 1, **`2` logical reads** trên `node_latest_metrics` + `32` key-lookup reads trên `metric_types`, **`0 ms` CPU / `0 ms` elapsed**).
     - Tổng hợp toàn bảng: `[2A]` Rowstore (`4,747` logical reads, `269 ms` CPU / `70 ms` elapsed) → `[2B]` Columnstore `NCCI_telemetry_analytics` (`Segment reads 1`, `4,728` logical reads + `10` lob reads trong transaction chưa commit, **`131 ms` CPU** / `131 ms` elapsed).
     - Partition Pruning 1 tháng `[3]` (`250,000` dòng tháng `2026-10`): Scan count 1, **`1,186` logical reads**, `24 ms` CPU / `26 ms` elapsed.
-- **Collector unit tests (`unittest discover -s collector/tests`)**: **6/6 PASS** trong `4.098s` (gồm test batch endpoint & fallback `404`).
-- **Backend suite (`unittest discover -s backend -p "test_*.py" -v`)**: **52/52 PASS, 0 skipped** trong `4.745s` (gồm `test_auth_api.py`, `test_dashboard_api.py`, `test_telemetry_api.py`, `test_security_regressions.py`).
-- **Frontend check & security tests (`cd web && npm test && npx tsc --noEmit`)**: **6/6 PASS** (chống SSRF proxy & CSV formula injection) + `tsc --noEmit` sạch (`0` lỗi).
-- **Next.js build (`cd web && npm run build`)**: **PASS** (TypeScript strict `2.9s` + Turbopack build sạch, gồm route `/api/telemetry/batch`).
+- **Collector unit tests (`unittest discover -s collector/tests`)**: **7/7 PASS** (gồm test batch endpoint, fallback `404` và parser Docker stats/host specs).
+- **Backend suite (`unittest discover -s backend -p "test_*.py" -v`)**: **53/53 PASS, 0 skipped** (gồm `test_auth_api.py`, `test_dashboard_api.py`, `test_telemetry_api.py`, `test_security_regressions.py`).
+- **Frontend check & security tests (`cd web && npm test && npx tsc --noEmit`)**: **6/6 PASS** (chống SSRF proxy & CSV formula injection) + `tsc --noEmit` (`noUnusedLocals`/`noUnusedParameters`) sạch (`0` lỗi) + security headers (`next.config.mjs`).
+- **Next.js build (`cd web && npm run build`)**: **PASS** (TypeScript strict + Turbopack build sạch).
 
 ## Việc còn lại
 
