@@ -65,7 +65,7 @@ BEGIN
     WHERE metric_type_id = @metric_type_id AND is_active = 1;
 
     -- 1. Lưu telemetry
-    INSERT INTO telemetry_metrics (node_id, metric_type_id, value, collected_at)
+    INSERT INTO telemetry_metrics (node_id, metric_type_id, value, timestamp)
     VALUES (@node_id, @metric_type_id, @value, SYSUTCDATETIME());
 
     -- 2. Cập nhật last_ping_at; trạng thái node theo ngưỡng trong bảng

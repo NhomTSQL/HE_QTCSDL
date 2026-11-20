@@ -250,7 +250,7 @@ IF NOT EXISTS (
     WHERE telemetry.node_id = 1 AND metric.code = N'cpu_usage_percent' AND telemetry.value = 24.5
 )
 BEGIN
-INSERT INTO telemetry_metrics (node_id, metric_type_id, value, collected_at)
+INSERT INTO telemetry_metrics (node_id, metric_type_id, value, timestamp)
 SELECT sample.node_id, metric.id, sample.value, @now
 FROM (VALUES
 -- Node 1: Healthy
