@@ -189,7 +189,90 @@ class TestCollector(unittest.TestCase):
             c = Collector(f"http://127.0.0.1:{self.port}/telemetry", "demo-key", 1, queue_file=str(Path(tmp) / "q.jsonl"))
             self.assertTrue(c.submit_host_specs(specs))
             self.assertEqual(Handler.headers_seen[-1].get("X-API-Key"), "demo-key")
+    
+    def test_two_minute_network_outage_buffers_to_file_and_recovers_all_data(self):
+        """Mo phong mat mang 2 phut (24 chu ky x 5s = 72 metrics), khoi dong lai va noi mang: khong mat du lieu."""
+        from unittest.mock import patch
+        import requests
 
+        class OutageSession:
+            def __init__(self):
+                self.online = False
+                self.delivered = []
+
+            def post(self, url, json=None, headers=None, timeout=5):
+                if not self.online:
+                    raise requests.ConnectionError("Simulated 2-minute network outage")
+                if url.endswith("/batch"):
+                    self.delivered.extend(json["metrics"])
+                else:
+                    self.delivered.append(json)
+
+                class OkResp:
+                    status_code = 201
+                    text = ""
+
+                return OkResp()
+
+        with TemporaryDirectory() as tmp:
+            q_file = Path(tmp) / "telemetry-queue.jsonl"
+            sess = OutageSession()
+            collector = Collector(
+                "http://example.local/telemetry",
+                "demo-key",
+                1,
+                interval=5,
+                queue_file=str(q_file),
+                queue_max=1000,
+                session=sess,
+                use_batch=True,
+            )
+
+            expected_values = []
+            with patch("agent.time.sleep", return_value=None):
+                # 1. Mat mang 2 phut = 24 chu ky (moi chu ky 5s gom 3 chi so = 72 ban ghi)
+                for cycle in range(24):
+                    batch = [
+                        {"node_id": 1, "metric_type": "cpu_usage_percent", "value": float(cycle * 3 + 1), "unit": "%"},
+                        {"node_id": 1, "metric_type": "memory_usage_percent", "value": float(cycle * 3 + 2), "unit": "%"},
+                        {"node_id": 1, "metric_type": "disk_usage_percent", "value": float(cycle * 3 + 3), "unit": "%"},
+                    ]
+                    expected_values.extend(item["value"] for item in batch)
+                    self.assertEqual(collector.submit_batch(batch), 0)
+
+                # Xac nhan toan bo 72 ban ghi da duoc ghi an toan xuong file .jsonl
+                self.assertEqual(len(collector.queue), 72)
+                self.assertTrue(q_file.exists())
+                disk_lines = q_file.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(len(disk_lines), 72)
+
+                # 2. Gia lap tat mo lai script Collector: phai nap du 72 ban ghi tu file len RAM
+                restarted_collector = Collector(
+                    "http://example.local/telemetry",
+                    "demo-key",
+                    1,
+                    interval=5,
+                    queue_file=str(q_file),
+                    queue_max=1000,
+                    session=sess,
+                    use_batch=True,
+                )
+                self.assertEqual(len(restarted_collector.queue), 72)
+
+                # 3. Co mang tro lai & gui chu ky thu 25 (3 chi so moi)
+                sess.online = True
+                live_batch = [
+                    {"node_id": 1, "metric_type": "cpu_usage_percent", "value": 73.0, "unit": "%"},
+                    {"node_id": 1, "metric_type": "memory_usage_percent", "value": 74.0, "unit": "%"},
+                    {"node_id": 1, "metric_type": "disk_usage_percent", "value": 75.0, "unit": "%"},
+                ]
+                expected_values.extend(item["value"] for item in live_batch)
+                self.assertEqual(restarted_collector.submit_batch(live_batch), 3)
+
+            # Xac nhan hang doi da xa het & server nhan du 75/75 ban ghi dung thu tu FIFO
+            self.assertEqual(len(restarted_collector.queue), 0)
+            self.assertEqual(q_file.read_text(encoding="utf-8").strip(), "")
+            self.assertEqual([item["value"] for item in sess.delivered], expected_values)
 
 if __name__ == "__main__":
     unittest.main()
