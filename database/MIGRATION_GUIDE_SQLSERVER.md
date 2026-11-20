@@ -12,6 +12,23 @@ Sau khi SQL Server khởi động, kết nối bằng SQL Server Management Stud
 4. `database/04_procedures_triggers_views.sql`
 5. `database/05_retention_policy.sql`
 
+Sau bước 1–5, chạy tiếp các script nghiệp vụ, bảo mật, backup và mở rộng theo thứ tự:
+
+6. `database/08_dev_node_api_key.sql`
+7. `database/09_auth_procedures.sql`
+8. `database/10_agent_job_heartbeat.sql`
+9. `database/12_backup_recovery_model.sql`
+10. `database/13_backup_jobs.sql`
+11. `database/14_backup_cleanup.sql`
+12. `database/16_alert_dedupe.sql`
+13. `database/17_dashboard_api_procedures.sql`
+14. `database/19_security_and_core_fixes.sql`
+15. `database/20_extended_features_procedures.sql`
+16. `database/22_scale_architecture.sql`
+17. `database/23_least_privilege_login.sql`
+18. `database/25_password_recovery.sql`
+19. `database/26_security_hardening.sql` (bắt buộc cho `usp_validate_auth_session` và kiểm tra phiên đăng nhập)
+
 `database/02_create_tables.sql` tạo schema chuẩn hóa và nâng cấp các cột JSON/
 chuỗi của schema cũ. Việc nâng cấp chạy trong transaction; JSON không hợp lệ,
 thuộc tính không nhận diện hoặc đơn vị telemetry không nhất quán sẽ làm script
@@ -25,5 +42,6 @@ SQL làm script kết thúc không thành công.
 
 ERD, từ điển dữ liệu và phân tích 3NF: [docs/ERD-DATA-DICTIONARY.md](../docs/ERD-DATA-DICTIONARY.md).
 
-Các hash mật khẩu trong seed data chỉ là placeholder. Thay chúng bằng hash hợp lệ
-trước khi dùng chức năng đăng nhập.
+Các hash mật khẩu trong seed data chỉ là placeholder. Đặt biến `AR_IMMS_DEV_PASSWORD`
+trong file `.env` cục bộ để Flask tự động đồng bộ hash cho `admin`, `operator`,
+`technician` khi khởi động trước khi dùng chức năng đăng nhập.

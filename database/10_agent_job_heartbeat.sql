@@ -23,7 +23,7 @@ EXEC msdb.dbo.sp_add_jobstep
     @step_name = N'Run usp_check_stale_nodes',
     @subsystem = N'TSQL',
     @database_name = N'AR_IMMS',
-    @command = N'EXEC dbo.usp_check_stale_nodes @stale_timeout_seconds = 90;',
+    @command = N'SET QUOTED_IDENTIFIER ON; EXEC dbo.usp_check_stale_nodes @stale_timeout_seconds = 90;',
     @on_success_action = 1,
     @on_fail_action = 2;
 

@@ -44,31 +44,30 @@ phục vụ việc trình diễn luồng nghiệp vụ qua CSDL.
 Danh sách chi tiết, thứ tự và người phụ trách nằm trong backlog Jira. Không xem
 các mục trong bảng là đã triển khai chỉ vì chúng được đánh dấu Must.
 
-### Should — làm sau Must nếu còn năng lực
+### Should — đã triển khai bổ sung theo Đề cương
 
-- Tra cứu thông tin Node bằng trang web quét QR và API tra cứu marker.
-- Báo cáo xu hướng telemetry theo Rack/Node.
-- View/CTE dựng cây hạ tầng.
-- View tài sản và cảnh báo bảo hành sắp hết hạn.
+- Trang Mobile Web AR/QR Scanner (`ArScannerTab`) với camera/BarcodeDetector, HUD overlay thông số thời gian thực, container restart có audit và thao tác ticket tại hiện trường (`usp_lookup_node_by_marker`, `usp_manage_marker`).
+- Báo cáo xu hướng telemetry theo Rack/Node (`usp_get_telemetry_history`) và phân tích năng lượng PUE / quy hoạch dung lượng (`usp_get_analytics_summary`, `usp_get_capacity_report`).
+- View/SP dựng cây hạ tầng 5 cấp (`Site → Room → Rack → Node → Container`).
+- Quản lý cấu hình phần cứng, NIC, lịch sử bảo trì và cảnh báo bảo hành sắp/đã hết hạn (`usp_list_assets`, `usp_upsert_asset_warranty`, `usp_list_maintenance_histories`).
 
-Các hạng mục này tương ứng với nhãn `should` trong CSV Jira hiện tại. Nếu thiếu
-thời gian, giữ trạng thái chưa làm và không làm ảnh hưởng tiêu chí Must.
+### Could — đã hoàn thiện 100% kèm Design to Scale
 
-### Could — chỉ làm khi Must/Should đã ổn định
-
-- Columnstore index cho truy vấn báo cáo; chỉ nhận việc khi có dữ liệu đo cho
-  thấy lợi ích và còn thời gian.
+- **Nonclustered Columnstore Index `NCCI_telemetry_analytics`** (`database/22_scale_architecture.sql`) kết hợp Covering Index `IX_telemetry_node_metric_time_inc` tối ưu truy vấn phân tích/báo cáo quy mô lớn (giảm CPU/IO qua Columnstore Segment Reads).
+- **Kiến trúc chịu tải & mở rộng (Design to Scale)**:
+  - Bảng snapshot O(1) `dbo.node_latest_metrics` + cập nhật `dbo.vw_latest_telemetry` giúp đọc trạng thái mới nhất tức thời không cần quét bảng lịch sử.
+  - Phân vùng bảng `telemetry_metrics` theo tháng (`PF_TelemetryMonth` / `PS_TelemetryMonth`) và lưu trữ/xóa tức thời bằng `SWITCH PARTITION` (`dbo.usp_purge_telemetry_partition`).
+  - Batch telemetry ingest (`POST /telemetry/batch`, BFF `/api/telemetry/batch`, `usp_record_telemetry_batch` qua `OPENJSON`, collector `USE_BATCH=1` tự fallback `404/405`).
+  - Phân trang phía server (`OFFSET...FETCH` với `limit/offset` và bộ lọc `node_id`/`rack_id` trên `usp_list_nodes_latest`, `usp_list_alerts`, `usp_list_tickets`, `usp_list_audit_logs`).
+  - Tách tài khoản ứng dụng quyền tối thiểu `ar_imms_app` (`database/23_least_privilege_login.sql`) và kiểm chứng benchmark 1.000.060 dòng (`database/24_scale_benchmark_1m.sql`).
+  - Tối ưu UI: tab-aware lazy polling, SSE debounce `1500ms`, lưu phiên làm việc `sessionStorage`, phân trang `25` mục/trang và xuất báo cáo CSV (UTF-8 BOM).
 
 ### Won't — ngoài phạm vi phiên bản này
 
-- AR thực tế, nhận diện/hiển thị bằng ArUco; QR trên web là phương án tra cứu
-  được chọn.
-- mTLS.
-- PUE.
-- Vận hành nhiều site như một hệ thống multi-site hoàn chỉnh. Mô hình có thực
-  thể `Site` không đồng nghĩa tính năng multi-site đã được cam kết.
-- Hash-chain audit.
-- Ứng dụng mobile native; trải nghiệm mobile giới hạn ở web responsive/quét QR.
+- Ứng dụng mobile native React Native tách rời hoặc AR 3D SDK chuyên biệt; đã chọn Mobile Web AR/QR trực tiếp trên Next.js responsive.
+- mTLS cho collector (đang dùng `X-API-Key` băm SHA-256).
+- Vận hành nhiều site như một hệ thống multi-site phân tán hoàn chỉnh.
+- Hash-chain audit (đang dùng trigger bất biến `trg_audit_logs_immutable` và `DENY UPDATE, DELETE` trên `audit_logs`).
 
 Thay đổi mục Won't cần được nhóm thống nhất và cập nhật tài liệu cùng backlog
 trước khi nhận việc.
@@ -99,11 +98,3 @@ trước khi nhận việc.
    quả, giới hạn và checklist.
 6. Thành viên có thể giải thích phần việc của mình và các quyết định DB liên quan.
 
-## Giới hạn chưa được coi là xác nhận
-
-- CSV hiện có 4 task chuẩn bị vấn đáp theo vai A–D, trong khi quy mô nhóm là 5
-  sinh viên. Nhóm cần phân công thành viên thứ năm trên Jira; tài liệu không tự
-  suy đoán vai trò.
-- Tên cột `Labels` bị lặp nhiều lần trong CSV. Trước khi import, cần kiểm tra
-  mapping Jira để các nhãn Epic, MoSCoW, workstream, tuần và vai trò không bị
-  ghi đè hoặc bỏ sót.
