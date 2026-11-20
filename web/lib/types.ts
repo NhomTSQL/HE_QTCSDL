@@ -223,8 +223,14 @@ export type UserRow = {
   role_id: number;
   role_name: string;
   is_active: boolean;
+  mfa_enabled?: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type AccountAccessRequest = {
+  id: number; username: string; email: string; full_name: string;
+  requested_role: string; note: string | null; created_at: string;
 };
 
 export type AuditLogRow = {

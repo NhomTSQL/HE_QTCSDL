@@ -6,7 +6,7 @@ import jwt
 
 from app import create_app
 
-# Mat khau dev da dat bang scripts/set_dev_passwords.py (dat qua bien moi truong, khong luu trong repo)
+# Mat khau dev cau hinh qua AR_IMMS_DEV_PASSWORD trong .env (khong luu trong repo)
 DEV_PASSWORD = os.environ.get("AR_IMMS_DEV_PASSWORD")
 
 ROLES = {"admin": "ADMINISTRATOR", "operator": "SYSTEM_OPERATOR", "technician": "FIELD_TECHNICIAN"}

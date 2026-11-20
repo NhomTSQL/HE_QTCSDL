@@ -26,7 +26,7 @@ Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
 - Database triển khai là SQL Server Developer; không dùng PostgreSQL/SQLite thay thế.
 - Không commit `.env`, mật khẩu hoặc khóa bí mật. Mỗi máy dùng mật khẩu SQL Server riêng.
 - Backend chỉ truy cập DB qua stored procedure. Next.js không kết nối SQL Server.
-- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; chạy `scripts/set_dev_passwords.py` trước khi đăng nhập.
+- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; đặt `AR_IMMS_DEV_PASSWORD` trong `.env` (tối thiểu 8 ký tự) để Flask tự động đồng bộ hash cho `admin`, `operator`, `technician` khi khởi động.
 
 ## Các bước chạy
 
@@ -51,6 +51,8 @@ Chờ container báo healthy. Mở SSMS hoặc Azure Data Studio, kết nối `l
 15. `database/20_extended_features_procedures.sql`
 16. `database/22_scale_architecture.sql` (snapshot O(1), phân vùng tháng, Columnstore index, batch SP, phân trang)
 17. `database/23_least_privilege_login.sql` (user ứng dụng quyền tối thiểu `ar_imms_app`)
+18. `database/25_password_recovery.sql` (phiên đăng nhập `auth_sessions`, MFA, khôi phục mật khẩu, bàn giao ca)
+19. `database/26_security_hardening.sql` (xác thực phiên, trigger thu hồi phiên khi đổi quyền/mật khẩu, BOLA guard)
 
 Các script kiểm chứng & benchmark (không làm hỏng dữ liệu):
 - `database/06_verify_seed_data.sql`
@@ -85,11 +87,13 @@ Invoke-RestMethod http://localhost:5000/health
 
 ### 3. Mật khẩu demo
 
-```powershell
-py scripts/set_dev_passwords.py
+Đặt biến `AR_IMMS_DEV_PASSWORD` (ít nhất 8 ký tự) trong file `.env` cục bộ trước khi chạy Flask:
+
+```ini
+AR_IMMS_DEV_PASSWORD=your-local-dev-password
 ```
 
-Đặt mật khẩu cho `admin`, `operator`, `technician`. Không commit `.env` hoặc mật khẩu.
+Khi `backend/app.py` khởi động (hoặc chạy test), Flask sẽ tự động kiểm tra và đồng bộ hash mật khẩu cho 3 tài khoản mẫu (`admin`, `operator`, `technician`) qua stored procedure `dbo.usp_set_user_password_hash`. Không commit `.env` hoặc mật khẩu.
 
 ### 4. Next.js dashboard
 

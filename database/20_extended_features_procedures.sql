@@ -1282,6 +1282,7 @@ BEGIN
            u.role_id,
            r.name AS role_name,
            u.is_active,
+           u.mfa_enabled,
            u.created_at,
            u.updated_at
     FROM dbo.users u
@@ -1347,7 +1348,8 @@ BEGIN
                 full_name = @full_name,
                 role_id = @role_id,
                 is_active = @is_active,
-                password_hash = COALESCE(@clean_hash, password_hash)
+                password_hash = COALESCE(@clean_hash, password_hash),
+                security_version = security_version + CASE WHEN role_id <> @role_id OR is_active <> @is_active OR @clean_hash IS NOT NULL THEN 1 ELSE 0 END
             WHERE id = @user_id;
         END;
 

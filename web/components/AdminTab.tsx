@@ -1,13 +1,15 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { downloadCsv } from '@/lib/csv';
 import { getCopy } from '@/lib/i18n';
-import type { AuditLogRow, CollectorAgentRow, Lang, UserRow } from '@/lib/types';
+import type { AccountAccessRequest, AuditLogRow, CollectorAgentRow, Lang, UserRow } from '@/lib/types';
 
 type Props = {
   lang: Lang;
   users: UserRow[];
+  accountRequests: AccountAccessRequest[];
+  accountRequestsAvailable: boolean;
   collectors: CollectorAgentRow[];
   auditLogs: AuditLogRow[];
   auditFilter: string;
@@ -16,7 +18,9 @@ type Props = {
   onChangeAuditFilter: (entity: string) => void;
   onChangeAuditPage: (nextPage: number) => void;
   onSaveUser: (payload: Record<string, unknown>) => Promise<void>;
-  onManageCollector: (payload: Record<string, unknown>) => Promise<void>;
+  onReviewAccountRequest: (request: AccountAccessRequest, decision: 'APPROVE' | 'REJECT') => Promise<string | null>;
+  onIssueRecoveryCode: (userId: number) => Promise<string | null>;
+  onManageCollector: (payload: Record<string, unknown>) => Promise<string | null>;
 };
 
 const AUDIT_ENTITIES = ['', 'ALERT', 'TICKET', 'NODE', 'SITE', 'ROOM', 'RACK', 'THRESHOLD', 'ASSET', 'CONTAINER', 'AGENT', 'USER', 'DATABASE'];
@@ -24,6 +28,8 @@ const AUDIT_ENTITIES = ['', 'ALERT', 'TICKET', 'NODE', 'SITE', 'ROOM', 'RACK', '
 export function AdminTab({
   lang,
   users,
+  accountRequests,
+  accountRequestsAvailable,
   collectors,
   auditLogs,
   auditFilter,
@@ -32,6 +38,8 @@ export function AdminTab({
   onChangeAuditFilter,
   onChangeAuditPage,
   onSaveUser,
+  onReviewAccountRequest,
+  onIssueRecoveryCode,
   onManageCollector,
 }: Props) {
   const t = getCopy(lang);
@@ -44,6 +52,23 @@ export function AdminTab({
   const [isActive, setIsActive] = useState(true);
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [issuedRecoveryCode, setIssuedRecoveryCode] = useState('');
+  const [issuedRecoveryUser, setIssuedRecoveryUser] = useState('');
+  const [keyAgent, setKeyAgent] = useState<CollectorAgentRow | null>(null);
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [rotatedKey, setRotatedKey] = useState('');
+  const [rotatedAgentLabel, setRotatedAgentLabel] = useState('');
+  const [copiedCollectorKey, setCopiedCollectorKey] = useState(false);
+
+  useEffect(() => {
+    if (!rotatedKey) return;
+    const timer = setTimeout(() => {
+      setRotatedKey('');
+      setRotatedAgentLabel('');
+      setCopiedCollectorKey(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [rotatedKey]);
 
   function openCreate() {
     setEditId(null);
@@ -84,6 +109,14 @@ export function AdminTab({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function issueRecoveryCode(user: UserRow) {
+    setSaving(true);
+    try {
+      const code = await onIssueRecoveryCode(user.id);
+      if (code) { setIssuedRecoveryCode(code); setIssuedRecoveryUser(user.username); }
+    } finally { setSaving(false); }
   }
 
   return (
@@ -151,15 +184,23 @@ export function AdminTab({
                     </span>
                   </td>
                   <td>
-                    <button type="button" className="compact-action secondary" onClick={() => openEdit(u)}>
-                      {t.admin.editUser}
-                    </button>
+                    <div className="ticket-actions-wrap"><button type="button" className="compact-action secondary" onClick={() => openEdit(u)}>{t.admin.editUser}</button><button type="button" className="compact-action secondary" disabled={saving || !u.is_active} onClick={() => void issueRecoveryCode(u)}>{t.admin.issueRecoveryCode}</button></div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="section-head"><div><h2>{t.admin.accountRequests}</h2><p className="section-sub">{t.admin.accountRequestsHelp}</p></div><span className="list-count">{accountRequests.length}</span></div>
+        {!accountRequestsAvailable && <div className="notice-muted" role="status">{t.admin.accountRequestsMigration}</div>}
+        {issuedRecoveryCode && <div className="notice banner" role="status"><strong>{issuedRecoveryUser}</strong>: <code>{issuedRecoveryCode}</code><p>{t.admin.recoveryCodeOneTime}</p><button type="button" className="compact-action secondary" onClick={() => { void navigator.clipboard?.writeText(issuedRecoveryCode); }}>{t.twin.copyKey}</button><button type="button" className="compact-action secondary" onClick={() => setIssuedRecoveryCode('')}>{t.close}</button></div>}
+        <div className="table-wrap"><table><thead><tr><th>{t.username}</th><th>{t.admin.fullName}</th><th>{t.admin.email}</th><th>{t.admin.role}</th><th>{t.requestNote}</th><th>{t.admin.createdAt}</th><th /></tr></thead><tbody>
+          {accountRequests.map(item => <tr key={item.id}><td><strong>{item.username}</strong></td><td>{item.full_name}</td><td>{item.email}</td><td>{t.roles[item.requested_role] ?? item.requested_role}</td><td>{item.note || '—'}</td><td>{new Date(item.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</td><td><div className="ticket-actions-wrap"><button type="button" className="compact-action" disabled={saving} onClick={async () => { setSaving(true); try { const code = await onReviewAccountRequest(item, 'APPROVE'); if (code) { setIssuedRecoveryCode(code); setIssuedRecoveryUser(item.username); } } finally { setSaving(false); } }}>{t.admin.approveAccess}</button><button type="button" className="compact-action secondary" disabled={saving} onClick={() => void onReviewAccountRequest(item, 'REJECT')}>{t.admin.rejectAccess}</button></div></td></tr>)}
+          {!accountRequests.length && <tr><td colSpan={7} className="empty">{t.admin.noAccountRequests}</td></tr>}
+        </tbody></table></div>
       </section>
 
       <section className="panel">
@@ -170,6 +211,75 @@ export function AdminTab({
           </div>
           <span className="refresh-label">{collectors.length} agents</span>
         </div>
+        {rotatedKey && (
+          <div className="notice banner key-banner" role="status">
+            <div>
+              <span>{t.admin.rotatedKeyNotice} <strong>{rotatedAgentLabel}</strong>: <code>{rotatedKey}</code></span>
+              <p className="section-sub">{t.admin.rotatedKeyEnvHint}</p>
+            </div>
+            <div className="ticket-actions-wrap">
+              <button
+                type="button"
+                className="compact-action"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(rotatedKey);
+                  setCopiedCollectorKey(true);
+                }}
+              >
+                {copiedCollectorKey ? t.twin.copied : t.twin.copyKey}
+              </button>
+              <button type="button" className="compact-action secondary" onClick={() => setRotatedKey('')}>
+                {t.close}
+              </button>
+            </div>
+          </div>
+        )}
+        {keyAgent && (
+          <form
+            className="ticket-form"
+            onSubmit={async e => {
+              e.preventDefault();
+              setSaving(true);
+              try {
+                const issued = await onManageCollector({
+                  id: keyAgent.id,
+                  node_id: keyAgent.node_id,
+                  agent_version: keyAgent.agent_version,
+                  status: 'ACTIVE',
+                  rotate_key: true,
+                  ...(customApiKey.trim() ? { api_key: customApiKey.trim() } : {}),
+                });
+                if (issued) {
+                  setRotatedKey(issued);
+                  setRotatedAgentLabel(`#${keyAgent.id} · ${keyAgent.node_name}`);
+                  setCopiedCollectorKey(false);
+                }
+                setKeyAgent(null);
+                setCustomApiKey('');
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            <label>
+              {t.admin.customApiKeyLabel} (#{keyAgent.id} · {keyAgent.node_name})
+              <input
+                value={customApiKey}
+                onChange={e => setCustomApiKey(e.target.value)}
+                placeholder={t.admin.customApiKeyPlaceholder}
+              />
+            </label>
+            <div className="ticket-form-footer">
+              <button type="submit" disabled={saving}>{t.admin.applyApiKey}</button>
+              <button type="button" className="secondary" disabled={saving} onClick={() => setCustomApiKey('demo-node-key-001')}>
+                {t.admin.useDemoKey}
+              </button>
+              <button type="button" className="secondary" onClick={() => { setKeyAgent(null); setCustomApiKey(''); }}>
+                {t.assets.cancelEdit}
+              </button>
+            </div>
+          </form>
+        )}
         <div className="table-wrap">
           <table>
             <thead>
@@ -218,13 +328,10 @@ export function AdminTab({
                       <button
                         type="button"
                         className="compact-action"
-                        onClick={() => void onManageCollector({
-                          id: agent.id,
-                          node_id: agent.node_id,
-                          agent_version: agent.agent_version,
-                          status: 'ACTIVE',
-                          rotate_key: true,
-                        })}
+                        onClick={() => {
+                          setKeyAgent(agent);
+                          setCustomApiKey('');
+                        }}
                       >
                         {t.admin.rotateKey}
                       </button>

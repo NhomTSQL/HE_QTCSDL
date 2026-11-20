@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from werkzeug.security import generate_password_hash
 
-from auth import JWT_ALGORITHM, ROLE_ADMIN, ROLE_OPERATOR, ROLE_TECHNICIAN, require_roles
+from auth import ROLE_ADMIN, ROLE_OPERATOR, ROLE_TECHNICIAN, require_roles, validate_session_token
 from extensions import db, event_hub
 
 api_bp = Blueprint("dashboard_api", __name__, url_prefix="/api")
@@ -24,6 +24,11 @@ VALID_ROLES = {ROLE_ADMIN, ROLE_OPERATOR, ROLE_TECHNICIAN}
 
 def _rows(statement, params=None):
     return [dict(row) for row in db.session.execute(text(statement), params or {}).mappings().all()]
+
+
+def _authorize_ticket_write(ticket_id):
+    db.session.execute(text("{CALL dbo.usp_authorize_ticket_write (:ticket_id, :actor_user_id)}"),
+                       {"ticket_id": ticket_id, "actor_user_id": g.current_user["user_id"]})
 
 
 def _positive_int(value):
@@ -81,6 +86,7 @@ def _procedure_error(exc):
         "51087": (400, "group_by must be SITE, ROOM, RACK or NODE."),
         "51088": (400, "Invalid collector agent configuration."),
         "51090": (403, "Audit logs are immutable."),
+        "51130": (403, "This operation requires an assigned ticket."),
     }
     for code, (status, detail) in codes.items():
         if code in message:
@@ -98,19 +104,32 @@ def stream_events():
     if not token:
         return jsonify({"error": "Missing token."}), 401
     try:
-        jwt.decode(token, secret, algorithms=[JWT_ALGORITHM], options={"require": ["exp", "sub"]})
+        _, claims = validate_session_token(token)
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid or expired token."}), 401
+    except DBAPIError:
+        db.session.rollback()
+        return jsonify({"error": "Authentication service unavailable."}), 503
 
     if request.args.get("once") == "1":
         seq, payload = event_hub.snapshot()
         return jsonify({"seq": seq, "event": payload})
+
+    db.session.rollback()  # Release the DB read transaction before waiting on SSE.
 
     def generate():
         seq, payload = event_hub.snapshot()
         yield f"data: {json.dumps(payload)}\n\n"
         while True:
             next_seq, next_payload = event_hub.wait_next(seq, timeout=15.0)
+            try:
+                if datetime.datetime.now(datetime.timezone.utc).timestamp() >= claims["exp"]:
+                    return
+                validate_session_token(token)
+                db.session.rollback()
+            except (jwt.InvalidTokenError, DBAPIError):
+                db.session.rollback()
+                return
             if next_seq != seq:
                 seq = next_seq
                 yield f"data: {json.dumps(next_payload)}\n\n"
@@ -434,6 +453,8 @@ def list_containers():
 @require_roles(*_READ_ROLES)
 def restart_container(container_db_id):
     try:
+        db.session.execute(text("{CALL dbo.usp_authorize_container_restart (:container_id, :actor_user_id)}"),
+                           {"container_id": container_db_id, "actor_user_id": g.current_user["user_id"]})
         rows = _rows(
             "{CALL dbo.usp_restart_container (:container_db_id, :actor_user_id)}",
             {"container_db_id": container_db_id, "actor_user_id": g.current_user["user_id"]},
@@ -692,6 +713,7 @@ def update_ticket_status(ticket_id):
     if g.current_user["role"] == ROLE_TECHNICIAN and status not in {"IN_PROGRESS", "PENDING_CLOSURE"}:
         return jsonify({"error": "Technicians can only move tickets to IN_PROGRESS or PENDING_CLOSURE."}), 403
     try:
+        _authorize_ticket_write(ticket_id)
         rows = _rows(
             "{CALL dbo.usp_update_ticket_status (:ticket_id, :status, :actor_user_id)}",
             {"ticket_id": ticket_id, "status": status, "actor_user_id": g.current_user["user_id"]},
@@ -745,6 +767,7 @@ def add_ticket_note(ticket_id):
     if not isinstance(note_text, str) or not note_text.strip():
         return jsonify({"error": "note_text is required."}), 400
     try:
+        _authorize_ticket_write(ticket_id)
         rows = _rows(
             "{CALL dbo.usp_add_ticket_note (:ticket_id, :author_user_id, :note_text)}",
             {
@@ -775,6 +798,7 @@ def submit_ticket_closure_request(ticket_id):
     if not isinstance(maintenance_type, str) or maintenance_type not in MAINTENANCE_TYPES:
         return jsonify({"error": "Invalid maintenance_type."}), 400
     try:
+        _authorize_ticket_write(ticket_id)
         rows = _rows(
             "{CALL dbo.usp_submit_ticket_closure_request (:ticket_id, :requested_by_user_id, "
             ":summary, :resolution_details, :maintenance_type)}",
@@ -973,6 +997,72 @@ def manage_user():
         return _procedure_error(exc)
 
 
+@api_bp.get("/account-requests")
+@require_roles(ROLE_ADMIN)
+def list_account_requests():
+    try:
+        return jsonify(_rows("EXEC dbo.usp_list_account_access_requests"))
+    except DBAPIError as exc:
+        return _procedure_error(exc)
+
+
+@api_bp.post("/account-requests/<int:request_id>/review")
+@require_roles(ROLE_ADMIN)
+def review_account_request(request_id):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error="Body must be a JSON object."), 400
+    decision = payload.get("decision")
+    if not isinstance(decision, str) or decision not in {"APPROVE", "REJECT"}:
+        return jsonify(error="decision must be APPROVE or REJECT."), 400
+    if decision == "REJECT":
+        bootstrap = code_hash = role = None
+        response_code = None
+    else:
+        role = payload.get("role_name")
+        bootstrap = secrets.token_urlsafe(18)
+        code = secrets.token_urlsafe(32)
+        code_hash = hashlib.sha256(code.encode()).hexdigest()
+        response_code = code
+    try:
+        rows = _rows("""{CALL dbo.usp_review_account_access_request (:request_id, :actor_user_id, :decision, :role_name, :bootstrap_hash, :code_hash)}""", {
+            "request_id": request_id, "actor_user_id": g.current_user["user_id"], "decision": decision,
+            "role_name": role, "bootstrap_hash": generate_password_hash(bootstrap) if bootstrap else None, "code_hash": code_hash,
+        })
+        db.session.commit()
+        return jsonify({"status": decision.lower(), "recovery_code": response_code, "user_id": rows[0].get("user_id") if rows else None}), 200, {"Cache-Control": "no-store"}
+    except DBAPIError as exc:
+        return _procedure_error(exc)
+
+
+@api_bp.get("/handover")
+@require_roles(*_READ_ROLES)
+def list_handover_notes():
+    try:
+        return jsonify(_rows("EXEC dbo.usp_list_handover_notes"))
+    except DBAPIError as exc:
+        return _procedure_error(exc)
+
+
+@api_bp.post("/handover")
+@require_roles(*_READ_ROLES)
+def add_handover_note():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error="Body must be a JSON object."), 400
+    note = payload.get("note")
+    if not isinstance(note, str) or not 1 <= len(note.strip()) <= 1000:
+        return jsonify(error="note must be 1-1000 characters."), 400
+    try:
+        rows = _rows("{CALL dbo.usp_add_handover_note (:user_id, :username, :note)}", {
+            "user_id": g.current_user["user_id"], "username": g.current_user["username"], "note": note.strip(),
+        })
+        db.session.commit()
+        return jsonify(rows[0] if rows else {"status": "created"}), 201
+    except DBAPIError as exc:
+        return _procedure_error(exc)
+
+
 @api_bp.get("/audit-logs")
 @require_roles(ROLE_ADMIN)
 def list_audit_logs():
@@ -1014,7 +1104,9 @@ def list_notifications():
 @require_roles(*_READ_ROLES)
 def mark_notifications_read():
     payload = request.get_json(silent=True)
-    notification_id = payload.get("notification_id") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict) or set(payload) - {"notification_id"}:
+        return jsonify(error="Body must contain only notification_id, or be an empty object."), 400
+    notification_id = payload.get("notification_id")
     if notification_id is not None and not _positive_int(notification_id):
         return jsonify({"error": "notification_id must be a positive integer."}), 400
     try:
@@ -1067,7 +1159,9 @@ def manage_collector():
     node_id = payload.get("node_id")
     agent_version = payload.get("agent_version", "1.0.0")
     status = payload.get("status", "ACTIVE")
-    rotate_key = bool(payload.get("rotate_key", False))
+    rotate_key = payload.get("rotate_key", False)
+    if not isinstance(rotate_key, bool):
+        return jsonify(error="rotate_key must be a boolean."), 400
     raw_key = payload.get("api_key")
 
     if agent_id is not None and not _positive_int(agent_id):

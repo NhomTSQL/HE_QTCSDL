@@ -1,3 +1,4 @@
+import hashlib
 import os
 import unittest
 
@@ -267,16 +268,30 @@ class DashboardApiTest(unittest.TestCase):
 
     def test_warning_alert_generation_and_lifecycle(self):
         op_headers = self._bearer(self.tokens["operator"])
+        demo_key = "demo-node-key-001"
+        demo_hash = hashlib.sha256(demo_key.encode("utf-8")).hexdigest().lower()
         with self.app.app_context():
             max_tm_id = db.session.execute(text("SELECT COALESCE(MAX(id), 0) FROM dbo.telemetry_metrics")).scalar()
             orig_status = db.session.execute(text("SELECT status FROM dbo.nodes WHERE id = 1")).scalar()
+            orig_agent = db.session.execute(
+                text(
+                    "SELECT id, api_key_hash, status FROM dbo.data_collector_agents "
+                    "WHERE node_id = 1 AND agent_version = N'dev-demo'"
+                )
+            ).mappings().first()
+            if orig_agent and (orig_agent["api_key_hash"] != demo_hash or orig_agent["status"] != "ACTIVE"):
+                db.session.execute(
+                    text("UPDATE dbo.data_collector_agents SET api_key_hash = :h, status = N'ACTIVE' WHERE id = :aid"),
+                    {"h": demo_hash, "aid": orig_agent["id"]},
+                )
+                db.session.commit()
 
         created_alert_id = None
         try:
             ing = self.client.post(
                 "/telemetry",
                 json={"node_id": 1, "metric_type": "cpu_usage_percent", "value": 85.0, "unit": "%"},
-                headers={"X-API-Key": "demo-node-key-001"},
+                headers={"X-API-Key": demo_key},
             )
             self.assertEqual(ing.status_code, 201)
 
@@ -304,6 +319,15 @@ class DashboardApiTest(unittest.TestCase):
             self.assertEqual(cls_resp.get_json()["status"], "CLOSED")
         finally:
             with self.app.app_context():
+                if orig_agent:
+                    db.session.execute(
+                        text("UPDATE dbo.data_collector_agents SET api_key_hash = :h, status = :st WHERE id = :aid"),
+                        {
+                            "h": orig_agent["api_key_hash"],
+                            "st": orig_agent["status"],
+                            "aid": orig_agent["id"],
+                        },
+                    )
                 if created_alert_id is not None:
                     db.session.execute(text("DELETE FROM dbo.alerts WHERE id = :aid"), {"aid": created_alert_id})
                 db.session.execute(text("DELETE FROM dbo.telemetry_metrics WHERE id > :mid"), {"mid": max_tm_id})

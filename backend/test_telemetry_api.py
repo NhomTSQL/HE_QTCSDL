@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 
 from sqlalchemy import text
@@ -12,12 +13,45 @@ class TelemetryApiTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = create_app()
         cls.client = cls.app.test_client()
+        cls._orig_agent = None
         with cls.app.app_context():
-            cls.node_id = db.session.execute(
-                text("SELECT node_id FROM data_collector_agents WHERE agent_version = N'dev-demo'")
-            ).scalar()
-        if cls.node_id is None:
-            raise RuntimeError("Chua co agent demo. Chay database/08_dev_node_api_key.sql truoc.")
+            agent = db.session.execute(
+                text(
+                    "SELECT id, node_id, api_key_hash, status "
+                    "FROM dbo.data_collector_agents WHERE agent_version = N'dev-demo'"
+                )
+            ).mappings().first()
+            if agent is None:
+                raise RuntimeError("Chua co agent demo. Chay database/08_dev_node_api_key.sql truoc.")
+            cls._orig_agent = dict(agent)
+            cls.node_id = agent["node_id"]
+            demo_hash = hashlib.sha256(DEMO_KEY.encode("utf-8")).hexdigest().lower()
+            if agent["api_key_hash"] != demo_hash or agent["status"] != "ACTIVE":
+                db.session.execute(
+                    text(
+                        "UPDATE dbo.data_collector_agents "
+                        "SET api_key_hash = :h, status = N'ACTIVE' WHERE id = :aid"
+                    ),
+                    {"h": demo_hash, "aid": agent["id"]},
+                )
+                db.session.commit()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._orig_agent is not None:
+            with cls.app.app_context():
+                db.session.execute(
+                    text(
+                        "UPDATE dbo.data_collector_agents "
+                        "SET api_key_hash = :h, status = :st WHERE id = :aid"
+                    ),
+                    {
+                        "h": cls._orig_agent["api_key_hash"],
+                        "st": cls._orig_agent["status"],
+                        "aid": cls._orig_agent["id"],
+                    },
+                )
+                db.session.commit()
 
     def _count(self):
         with self.app.app_context():
@@ -156,6 +190,59 @@ class TelemetryApiTest(unittest.TestCase):
             with self.app.app_context():
                 db.session.execute(text("DELETE FROM dbo.telemetry_metrics WHERE id > :mid"), {"mid": max_tm_id})
                 db.session.commit()
+
+    def test_host_specs_telemetry_ingest(self):
+        self.assertEqual(self.client.post("/telemetry/host", json={}).status_code, 401)
+        with self.app.app_context():
+            orig = db.session.execute(
+                text(
+                    "SELECT n.ip_address, n.mac_address, s.cpu_model, s.cpu_cores, s.total_ram_gb, s.total_storage_gb, s.os_name, s.os_version "
+                    "FROM dbo.nodes n LEFT JOIN dbo.asset_specs s ON s.node_id = n.id WHERE n.id = :n"
+                ),
+                {"n": self.node_id},
+            ).mappings().first()
+        try:
+            bad = self.client.post(
+                "/telemetry/host",
+                json={"node_id": self.node_id + 9999, "cpu_model": "Test", "cpu_cores": 4, "total_ram_gb": 16, "total_storage_gb": 256, "os_name": "Windows 11", "os_version": "23H2"},
+                headers={"X-API-Key": DEMO_KEY},
+            )
+            self.assertEqual(bad.status_code, 403)
+            ok = self.client.post(
+                "/telemetry/host",
+                json={
+                    "node_id": self.node_id,
+                    "ip_address": "192.168.1.99",
+                    "mac_address": "AA-BB-CC-DD-EE-FF",
+                    "cpu_model": "Test CPU",
+                    "cpu_cores": 8,
+                    "total_ram_gb": 32.0,
+                    "total_storage_gb": 512.0,
+                    "os_name": "Windows 11",
+                    "os_version": "10.0.22631",
+                    "nics": [{"interface_name": "Wi-Fi", "mac_address": "AA-BB-CC-DD-EE-FF", "ipv4_address": "192.168.1.99", "speed_mbps": 866, "is_up": True}],
+                },
+                headers={"X-API-Key": DEMO_KEY},
+            )
+            self.assertEqual(ok.status_code, 201)
+            self.assertEqual(ok.get_json()["node_id"], self.node_id)
+        finally:
+            if orig and orig["cpu_model"]:
+                self.client.post(
+                    "/telemetry/host",
+                    json={
+                        "node_id": self.node_id,
+                        "ip_address": orig["ip_address"],
+                        "mac_address": orig["mac_address"],
+                        "cpu_model": orig["cpu_model"],
+                        "cpu_cores": int(orig["cpu_cores"]),
+                        "total_ram_gb": float(orig["total_ram_gb"]),
+                        "total_storage_gb": float(orig["total_storage_gb"]),
+                        "os_name": orig["os_name"],
+                        "os_version": orig["os_version"],
+                    },
+                    headers={"X-API-Key": DEMO_KEY},
+                )
 
 
 if __name__ == "__main__":

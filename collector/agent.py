@@ -12,7 +12,7 @@ from typing import Any, Deque, Dict, Iterable, List, Optional, Tuple
 
 import requests
 
-from metrics import sample_containers, sample_metrics
+from metrics import sample_containers, sample_host_specs, sample_metrics
 
 LOG = logging.getLogger("ar-imms-collector")
 
@@ -44,6 +44,8 @@ class Collector:
         sync_containers: bool = False,
         batch_url: Optional[str] = None,
         use_batch: bool = False,
+        host_url: Optional[str] = None,
+        sync_host_specs: bool = False,
     ):
         if not api_url or not api_key or node_id <= 0:
             raise ValueError("API_URL, API_KEY and positive NODE_ID are required")
@@ -58,6 +60,8 @@ class Collector:
         self.sync_containers = sync_containers
         self.batch_url = batch_url or f"{self.api_url.rstrip('/')}/batch"
         self.use_batch = use_batch
+        self.host_url = host_url or f"{self.api_url.rstrip('/')}/host"
+        self.sync_host_specs = sync_host_specs
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=self.queue_max)
         self._load_queue()
 
@@ -183,10 +187,28 @@ class Collector:
             LOG.warning("Container telemetry request failed: %s", exc)
             return False
 
+    def submit_host_specs(self, specs: Dict[str, Any]) -> bool:
+        try:
+            response = self.session.post(
+                self.host_url,
+                json=specs,
+                headers={"X-API-Key": self.api_key},
+                timeout=5,
+            )
+            return 200 <= response.status_code < 300
+        except requests.RequestException as exc:
+            LOG.warning("Host specs telemetry request failed: %s", exc)
+            return False
+
     def run_forever(self) -> None:
         LOG.info("Starting collector node_id=%d -> %s (every %ds)", self.node_id, self.api_url, self.interval)
+        cycle = 0
         while True:
             start = time.monotonic()
+            if self.sync_host_specs and cycle % 60 == 0:
+                if self.submit_host_specs(sample_host_specs(self.node_id)):
+                    LOG.info("[node=%d] Synced host specs & NICs", self.node_id)
+            cycle += 1
             batch: List[Dict[str, Any]] = sample_metrics(self.node_id)
             sent = self.submit_batch(batch)
             c_sent = 0
@@ -224,11 +246,14 @@ def main() -> int:
         containers_url = os.environ.get("CONTAINERS_API_URL")
         use_batch = os.environ.get("USE_BATCH", "1").strip().lower() in {"1", "true", "yes"}
         batch_url = os.environ.get("BATCH_API_URL")
+        sync_host_specs = os.environ.get("SYNC_HOST_SPECS", "1").strip().lower() in {"1", "true", "yes"}
+        host_url = os.environ.get("HOST_API_URL")
 
         collector = Collector(
             api_url, api_key, node_id, interval, queue_file, queue_max,
             containers_url=containers_url, sync_containers=sync_containers,
             batch_url=batch_url, use_batch=use_batch,
+            host_url=host_url, sync_host_specs=sync_host_specs,
         )
         collector.run_forever()
     except KeyboardInterrupt:

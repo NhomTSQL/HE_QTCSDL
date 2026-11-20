@@ -1,8 +1,11 @@
 # ERD v1 và từ điển dữ liệu AR-IMMS
 
-Phiên bản này mô tả schema SQL Server trong `database/02_create_tables.sql`.
-Mô hình có 25 bảng, gồm cây Digital Twin `Site → Room → Rack → Node → Container`,
-RBAC, telemetry/cảnh báo, ticket bảo trì, tài sản và audit.
+Phiên bản này mô tả schema SQL Server đầy đủ gồm **32 bảng**: **25 bảng nghiệp vụ lõi**
+trong `database/02_create_tables.sql` (cây Digital Twin `Site → Room → Rack → Node → Container`,
+RBAC, telemetry/cảnh báo, ticket bảo trì, tài sản và audit), **2 bảng kiến trúc mở rộng**
+trong `database/22_scale_architecture.sql` (`node_latest_metrics`, `telemetry_metrics_archive_staging`),
+và **5 bảng bảo mật, phiên đăng nhập & bàn giao ca** trong `database/25_password_recovery.sql`
+(`auth_sessions`, `account_access_requests`, `password_recovery_codes`, `mfa_backup_codes`, `shift_handover_notes`).
 
 ## ERD
 
@@ -116,6 +119,18 @@ Các cột thời gian có default dùng `SYSUTCDATETIME()` nếu không ghi ch�
 | `asset_network_interfaces` | `asset_spec_id` (`int`, PK/FK → `asset_specs.id`, NN); `interface_name` (`nvarchar(100)`, PK, NN); `mac_address`, `ipv4_address`, `ipv6_address` (`nvarchar(50)`, NULL); `speed_mbps`, `mtu` (`int`, NULL); `is_up` (`bit`, NULL) | NIC là tập con nhiều dòng; khóa ghép nhận diện mỗi interface trong một bộ thông số và không có thuộc tính phụ thuộc một phần khóa. |
 | `maintenance_histories` | `id` (`int`, PK, identity); `node_id` (`int`, FK → `nodes.id`, NN); `ticket_id` (`int`, FK → `tickets.id`, NULL); `maintenance_type` (`nvarchar(50)`, NN, default `PREVENTIVE`, CHECK); `description` (`nvarchar(max)`, NN); `performed_by_user_id` (`int`, FK → `users.id`, NN); `performed_at` (`datetime2`, NN, UTC default); `resolution_notes` (`nvarchar(max)`, NULL); `created_at` (`datetime2`, NN, UTC default) | Mỗi lần bảo trì là một sự kiện riêng; ticket và người thực hiện được tham chiếu bằng FK. |
 | `audit_logs` | `id` (`bigint`, PK, identity); `user_id` (`int`, FK → `users.id`, NULL); `username` (`nvarchar(50)`, NULL, snapshot); `action` (`nvarchar(100)`, NN); `target_entity` (`nvarchar(100)`, NN); `target_id` (`nvarchar(50)`, NULL); `details_json` (`nvarchar(max)`, NULL, audit payload); `ip_address` (`nvarchar(50)`, NULL); `timestamp` (`datetime2`, NN, UTC default) | Dòng log bất biến tham chiếu actor khi còn tồn tại. Snapshot username và payload giữ nguyên ngữ cảnh thời điểm phát sinh; không dùng làm dữ liệu chuẩn của User. |
+
+### Mở rộng hiệu năng, bảo mật phiên, MFA và bàn giao ca (7 bảng bổ sung)
+
+| Bảng | Cột chính (kiểu dữ liệu; ràng buộc) | Mục đích |
+|---|---|---|
+| `node_latest_metrics` | `node_id` (`int`, PK/FK → `nodes.id`, NN); `metric_type_id` (`int`, PK/FK → `metric_types.id`, NN); `value` (`float`, NN); `timestamp` (`datetime2`, NN) | Bảng snapshot O(1) lưu giá trị mới nhất theo từng `(node_id, metric_type_id)` cho Dashboard. |
+| `telemetry_metrics_archive_staging` | Cấu trúc đồng nhất với `telemetry_metrics` trên `PS_TelemetryMonth` | Bảng staging phục vụ `SWITCH PARTITION` xóa/lưu trữ dữ liệu telemetry theo tháng (`usp_purge_telemetry_partition`). |
+| `auth_sessions` | `jti` (`char(36)`, PK, NN); `user_id` (`int`, FK → `users.id`, NN); `issued_at`, `expires_at` (`datetime2`, NN); `revoked_at` (`datetime2`, NULL) | Theo dõi phiên JWT đang hoạt động để thu hồi ngay khi đăng xuất, đổi mật khẩu hoặc đổi vai trò. |
+| `account_access_requests` | `id` (`int`, PK, identity); `username`, `email`, `full_name`, `requested_role`, `note`, `source_ip_hash` (`char(64)`, NN); `status` (`PENDING`/`APPROVED`/`REJECTED`); `reviewed_by_user_id` (`int`, FK → `users.id`, NULL) | Lưu yêu cầu cấp tài khoản mới để Admin phê duyệt qua `usp_review_account_access_request`. |
+| `password_recovery_codes` | `user_id` (`int`, PK/FK → `users.id`, NN); `code_hash` (`char(64)`, NN, UQ); `password_fingerprint` (`binary(32)`, NN); `expires_at` (`datetime2`, NN) | Mã khôi phục mật khẩu một lần gắn fingerprint mật khẩu hiện tại, hết hạn sau 15 phút. |
+| `mfa_backup_codes` | `user_id` (`int`, PK/FK → `users.id`, NN); `code_hash` (`char(64)`, PK, NN); `created_at` (`datetime2`, NN); `used_at` (`datetime2`, NULL) | 10 mã dự phòng dùng một lần khi bật TOTP MFA cho tài khoản Administrator. |
+| `shift_handover_notes` | `id` (`bigint`, PK, identity); `user_id` (`int`, FK → `users.id`, NN); `username` (`nvarchar(50)`, NN); `note` (`nvarchar(1000)`, NN); `created_at` (`datetime2`, NN) | Sổ ghi chú bàn giao ca trực giữa các kíp vận hành / kỹ thuật viên. |
 
 ## Kiểm thử và chạy lại
 

@@ -1,12 +1,12 @@
 # Trạng thái dự án AR-IMMS
 
-Cập nhật: 2026-11-19
+Cập nhật: 2026-11-20
 
 ## Kiến trúc đang triển khai
 
 - Backend/API chung: Flask tại `backend/app.py` và `backend/dashboard_api.py` (kích hoạt connection pool `pool_size=15`, `max_overflow=25`, `pool_pre_ping=True`).
 - Collector: Python + `psutil`, gửi telemetry theo batch (`POST /telemetry/batch`, mặc định `USE_BATCH=1`, tự fallback `POST /telemetry` nếu endpoint chưa bật) và trạng thái container (`POST /telemetry/containers`) tới Flask bằng `X-API-Key`.
-- Database: SQL Server 2022 Developer trong Docker Compose (`25` bảng chuẩn hóa 3NF + bảng snapshot `node_latest_metrics` và `telemetry_metrics_archive_staging`), phân vùng theo tháng và Columnstore index `NCCI_telemetry_analytics`.
+- Database: SQL Server 2022 Developer trong Docker Compose (**32 bảng**: `25` bảng nghiệp vụ chuẩn hóa 3NF + `2` bảng mở rộng `node_latest_metrics`, `telemetry_metrics_archive_staging` + `5` bảng bảo mật/phiên/bàn giao ca `auth_sessions`, `account_access_requests`, `password_recovery_codes`, `mfa_backup_codes`, `shift_handover_notes`), phân vùng theo tháng và Columnstore index `NCCI_telemetry_analytics`.
 - Nghiệp vụ dữ liệu: 100% qua Stored Procedure / Trigger / View / Function trên SQL Server (bao gồm `/health` và xác thực agent); không còn truy vấn `SELECT` trực tiếp trong backend.
 - Next.js dashboard trong `web/`: BFF qua `/api/*`, hỗ trợ song ngữ **EN / VI**, đáp ứng 100% **Must + Should + Could + Design to Scale**.
 
@@ -36,6 +36,7 @@ Python Collector (Batch + Offline Queue) ─────────────
   - Đã sửa lỗi `QUOTED_IDENTIFIER` cho `usp_check_stale_nodes` và `trg_alert_audit` tương thích filtered unique index `UX_alerts_one_open`; `database/11_test_heartbeat_job.sql` **PASS** (job chuyển node stale sang `UNAVAILABLE` sau ~9s, chỉ tạo đúng 1 alert chống trùng, `run_status = 1`).
   - Đã chạy kiểm chứng tạo Full/Diff/Log backup trong `backups/` và diễn tập khôi phục sang `AR_IMMS_RestoreTest` (`DBCC CHECKDB` sạch, `25/25` bảng).
 - **Web Command Center & Mobile Web AR (`web/`)**:
+  - Gỡ tiêu đề trang trí “Phân hệ/Modules” khỏi thanh điều hướng, giữ nguyên các mục phân hệ và nhãn truy cập.
   - BFF catch-all `web/app/api/[...path]/route.ts`, `POST /api/nodes` và `POST /api/telemetry/batch`.
   - Nút chuyển đổi ngôn ngữ **EN / VI** (`web/lib/i18n.ts`).
   - 5 phân hệ: **Overview & Digital Twin** (drill-down container, biểu đồ SVG lịch sử, onboard node cấp API key, ngưỡng cảnh báo, xác nhận cảnh báo, phân trang `25` mục/trang & luồng ticket Operator/Technician), **AR / QR Scanner** (`ArScannerTab` hỗ trợ camera/BarcodeDetector + preset marker testbed + HUD overlay), **Assets & Maintenance** (`AssetsTab`), **Analytics & PUE** (`AnalyticsTab` + xuất CSV UTF-8 BOM báo cáo 4 cấp), và **Admin & Audit** (`AdminTab` + phân trang `audit_logs` & xuất CSV UTF-8 BOM).
@@ -47,6 +48,11 @@ Python Collector (Batch + Offline Queue) ─────────────
   - `dbo.usp_record_telemetry_batch` (`OPENJSON`, rollback nguyên tử nếu có item sai, mã lỗi `51032`) nối với `POST /telemetry/batch` và collector `USE_BATCH=1`.
   - Bổ sung chỉ mục vận hành (`IX_agents_api_key_hash`, `IX_alerts_status_triggered`, `IX_tickets_status_created`, `IX_tickets_node_id`, `IX_notifications_user_read`) và phân trang `OFFSET...FETCH` + lọc tại SQL (`@node_id`, `@rack_id`) cho `usp_list_nodes_latest`, `usp_list_alerts`, `usp_list_tickets`, `usp_list_audit_logs`.
   - User quyền tối thiểu `ar_imms_app` thuộc role `db_ar_imms_executor` (`database/23_least_privilege_login.sql`).
+- **Security Hardening, Session/MFA/Recovery & Bàn giao ca (`database/25_password_recovery.sql`, `26_security_hardening.sql`, `backend/security.py`, `docs/SECURITY-REVIEW.md`)**:
+  - Quản lý phiên JWT có trạng thái (`auth_sessions`, `usp_validate_auth_session`, thu hồi phiên khác / đăng xuất fail-closed), trigger `trg_users_revoke_changed_credentials` tự tăng `security_version` khi đổi mật khẩu/role/trạng thái.
+  - MFA TOTP + 10 backup codes cho `ADMINISTRATOR`, luồng yêu cầu cấp tài khoản & khôi phục mật khẩu 1 lần (`usp_request_account_access`, `usp_review_account_access_request`, `usp_issue_password_recovery`, `usp_redeem_password_recovery`), sổ bàn giao ca (`shift_handover_notes`).
+  - Bảo vệ chống BOLA (`usp_authorize_ticket_write`, `usp_authorize_container_restart`), rate limiter `AttemptLimiter`, giới hạn kích thước JSON `1 MiB`, header `no-store`/`nosniff`, chống SSRF proxy & CSV Formula Injection.
+  - Tự động đồng bộ mật khẩu dev qua `AR_IMMS_DEV_PASSWORD` trong `.env` (`sync_dev_passwords` khi `create_app()` khởi chạy, thay thế `scripts/set_dev_passwords.py`).
 
 ## Bằng chứng kiểm chứng (2026-11-19)
 
@@ -63,11 +69,12 @@ Python Collector (Batch + Offline Queue) ─────────────
     - Đọc snapshot mới nhất: `[1A]` legacy `ROW_NUMBER` (Scan count 20, `4,747` logical reads, `9,456` read-ahead, `1,653 ms` CPU / `915 ms` elapsed) → `[1B]` O(1) `dbo.node_latest_metrics` (Scan count 1, **`2` logical reads** trên `node_latest_metrics` + `32` key-lookup reads trên `metric_types`, **`0 ms` CPU / `0 ms` elapsed**).
     - Tổng hợp toàn bảng: `[2A]` Rowstore (`4,747` logical reads, `269 ms` CPU / `70 ms` elapsed) → `[2B]` Columnstore `NCCI_telemetry_analytics` (`Segment reads 1`, `4,728` logical reads + `10` lob reads trong transaction chưa commit, **`131 ms` CPU** / `131 ms` elapsed).
     - Partition Pruning 1 tháng `[3]` (`250,000` dòng tháng `2026-10`): Scan count 1, **`1,186` logical reads**, `24 ms` CPU / `26 ms` elapsed.
-- **Collector unit tests (`unittest discover -s collector/tests -v`)**: **6/6 PASS** trong `4.079s` (gồm test batch endpoint & fallback `404`).
-- **Backend suite (`unittest discover -s backend -p "test_*.py" -v`)**: **30/30 PASS** trong `1.733s` (0 skipped; test đầy đủ auth, telemetry, batch ingest & rollback nguyên tử `422`, container ingest, SSE stream, marker lookup, thresholds, hierarchy/collectors/notifications, warning alert lifecycle, pagination `?limit=&offset=`, assets, summary, admin RBAC và luồng ticket Technician → Closure Approval).
+- **Collector unit tests (`unittest discover -s collector/tests`)**: **6/6 PASS** trong `4.098s` (gồm test batch endpoint & fallback `404`).
+- **Backend suite (`unittest discover -s backend -p "test_*.py" -v`)**: **52/52 PASS, 0 skipped** trong `4.745s` (gồm `test_auth_api.py`, `test_dashboard_api.py`, `test_telemetry_api.py`, `test_security_regressions.py`).
+- **Frontend check & security tests (`cd web && npm test && npx tsc --noEmit`)**: **6/6 PASS** (chống SSRF proxy & CSV formula injection) + `tsc --noEmit` sạch (`0` lỗi).
 - **Next.js build (`cd web && npm run build`)**: **PASS** (TypeScript strict `2.9s` + Turbopack build sạch, gồm route `/api/telemetry/batch`).
 
 ## Việc còn lại
 
-- Thực hiện kiểm thử cài đặt trên máy thứ hai và ghi nhận kết quả tại `docs/SETUP-WINDOWS.md`.
-- Commit/push nhánh `dev-hoangminh-flask`, thực hiện kịch bản demo trên trình duyệt (`http://localhost:3000`), quay video và hoàn thiện báo cáo/slide vấn đáp.
+- Thực hiện kiểm thử cài đặt trên máy thứ hai theo `docs/SETUP-WINDOWS.md` và ghi nhận kết quả tại mục 7 của tài liệu.
+- Commit/push nhánh `dev-hoangminh-flask`, thực hiện kịch bản demo trên trình duyệt (`http://localhost:3000`) theo `docs/DEMO.md`, quay video và hoàn thiện báo cáo/slide vấn đáp.

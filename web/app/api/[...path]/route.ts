@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 
 async function forward(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
-  if (!path.length || path.some(segment => segment === '..' || segment.includes('\0'))) {
+  if (!path.length || path.some(segment => segment === '.' || segment === '..' || /[%\\/\x00-\x1f]/.test(segment))) {
     return NextResponse.json({ error: 'Invalid API path.' }, { status: 400 });
   }
   const hasBody = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH';

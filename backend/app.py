@@ -11,7 +11,8 @@ from sqlalchemy.exc import DBAPIError
 
 
 from extensions import db, event_hub
-from auth import auth_bp
+from auth import auth_bp, sync_dev_passwords
+from security import install_security
 from dashboard_api import api_bp
 
 
@@ -67,7 +68,10 @@ def create_app() -> Flask:
         "pool_recycle": 1800,
     }
     db.init_app(app)
+    sync_dev_passwords(app)
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY")
+    app.config["MFA_ENCRYPTION_KEY"] = os.environ.get("MFA_ENCRYPTION_KEY")
+    install_security(app)
     app.register_blueprint(auth_bp)
     app.register_blueprint(api_bp)
 
@@ -281,8 +285,110 @@ def create_app() -> Flask:
 
         return jsonify({"status": "recorded", "node_id": node_id, "count": len(normalized)}), 201
 
+    @app.post("/telemetry/host")
+    def post_host_specs():
+        api_key = request.headers.get("X-API-Key", "")
+        node_id = find_node_id_by_api_key(api_key) if api_key else None
+        if node_id is None:
+            return jsonify({"error": "API key khong hop le"}), 401
+
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "Body phai la JSON object"}), 400
+
+        sent_node_id = payload.get("node_id")
+        if sent_node_id is not None and sent_node_id != node_id:
+            return jsonify({"error": "node_id khong khop voi API key"}), 403
+
+        cpu_model = payload.get("cpu_model")
+        cpu_cores = payload.get("cpu_cores")
+        total_ram_gb = payload.get("total_ram_gb")
+        total_storage_gb = payload.get("total_storage_gb")
+        os_name = payload.get("os_name")
+        os_version = payload.get("os_version")
+        ip_address = payload.get("ip_address")
+        mac_address = payload.get("mac_address")
+        raw_nics = payload.get("nics")
+
+        valid_body = (
+            isinstance(cpu_model, str) and bool(cpu_model.strip())
+            and isinstance(cpu_cores, int) and not isinstance(cpu_cores, bool) and cpu_cores > 0
+            and isinstance(total_ram_gb, (int, float)) and not isinstance(total_ram_gb, bool) and total_ram_gb > 0
+            and isinstance(total_storage_gb, (int, float)) and not isinstance(total_storage_gb, bool) and total_storage_gb > 0
+            and isinstance(os_name, str) and bool(os_name.strip())
+            and isinstance(os_version, str) and bool(os_version.strip())
+            and (ip_address is None or isinstance(ip_address, str))
+            and (mac_address is None or isinstance(mac_address, str))
+        )
+        if not valid_body:
+            return jsonify({"error": "Thieu hoac sai truong thong tin phan cung host"}), 400
+
+        clean_nics = None
+        if raw_nics is not None:
+            if not isinstance(raw_nics, list):
+                return jsonify({"error": "nics phai la danh sach"}), 400
+            seen_names = set()
+            clean_nics = []
+            for nic in raw_nics:
+                if not isinstance(nic, dict):
+                    return jsonify({"error": "Moi NIC phai la JSON object"}), 400
+                iname = nic.get("interface_name")
+                if not isinstance(iname, str) or not iname.strip():
+                    continue
+                trimmed_name = iname.strip()[:100]
+                if trimmed_name.lower() in seen_names:
+                    continue
+                seen_names.add(trimmed_name.lower())
+                mac = nic.get("mac_address")
+                ipv4 = nic.get("ipv4_address")
+                speed = nic.get("speed_mbps")
+                is_up = nic.get("is_up")
+                clean_nics.append({
+                    "interface_name": trimmed_name,
+                    "mac_address": mac.strip()[:50] if isinstance(mac, str) and mac.strip() else None,
+                    "ipv4_address": ipv4.strip()[:50] if isinstance(ipv4, str) and ipv4.strip() else None,
+                    "speed_mbps": int(speed) if isinstance(speed, int) and not isinstance(speed, bool) and speed >= 0 else None,
+                    "is_up": 1 if is_up else (0 if is_up is False else None),
+                })
+
+        try:
+            db.session.execute(
+                text(
+                    "EXEC dbo.usp_upsert_node_host_specs "
+                    "@node_id = :node_id, @ip_address = :ip_address, @mac_address = :mac_address, "
+                    "@cpu_model = :cpu_model, @cpu_cores = :cpu_cores, @total_ram_gb = :total_ram_gb, "
+                    "@total_storage_gb = :total_storage_gb, @os_name = :os_name, "
+                    "@os_version = :os_version, @nics_json = :nics_json"
+                ),
+                {
+                    "node_id": node_id,
+                    "ip_address": ip_address.strip()[:50] if isinstance(ip_address, str) and ip_address.strip() else None,
+                    "mac_address": mac_address.strip()[:50] if isinstance(mac_address, str) and mac_address.strip() else None,
+                    "cpu_model": cpu_model.strip()[:100],
+                    "cpu_cores": cpu_cores,
+                    "total_ram_gb": float(total_ram_gb),
+                    "total_storage_gb": float(total_storage_gb),
+                    "os_name": os_name.strip()[:100],
+                    "os_version": os_version.strip()[:50],
+                    "nics_json": json.dumps(clean_nics) if clean_nics is not None else None,
+                },
+            )
+            db.session.commit()
+            event_hub.publish("host_specs", node_id=node_id)
+        except DBAPIError as exc:
+            db.session.rollback()
+            detail = str(exc.orig)
+            for code, message in TELEMETRY_ERRORS.items():
+                if code in detail:
+                    return jsonify({"error": "Host specs khong hop le", "detail": message}), 422
+            app.logger.exception("usp_upsert_node_host_specs failed")
+            return jsonify({"error": "Loi may chu"}), 500
+
+        return jsonify({"status": "recorded", "node_id": node_id}), 201
+
     return app
 
 
 if __name__ == "__main__":
-    create_app().run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+    create_app().run(host=os.environ.get("FLASK_HOST", "127.0.0.1"),
+                     port=int(os.environ.get("PORT", "5000")), debug=False)

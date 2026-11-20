@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test tests/security.test.cjs"
   },
   "dependencies": {
+    "lucide-react": "1.61.0",
     "next": "^16.4.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

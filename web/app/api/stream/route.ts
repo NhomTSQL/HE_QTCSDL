@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       method: 'GET',
       headers,
       cache: 'no-store',
+      redirect: 'error',
       signal: req.signal,
     });
 

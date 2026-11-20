@@ -1,6 +1,8 @@
 function escapeCsvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const text = String(value);
+  // Quoting alone does not prevent spreadsheet formula execution.
+  const raw = String(value);
+  const text = typeof value === 'string' && /^[\s\uFEFF]*[=+@\-\t\r\n]/.test(raw) ? `'${raw}` : raw;
   if (/[",\r\n]/.test(text)) {
     return `"${text.replaceAll('"', '""')}"`;
   }

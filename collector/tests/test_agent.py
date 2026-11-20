@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from agent import Collector
-from metrics import sample_metrics
+from metrics import _parse_memory_mb, _parse_percent, sample_host_specs, sample_metrics
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -173,6 +173,22 @@ class TestCollector(unittest.TestCase):
                     "http://example.local/telemetry",
                 ],
             )
+
+    def test_docker_stat_parsers_and_host_specs(self):
+        self.assertEqual(_parse_percent("6.36%"), 6.36)
+        self.assertEqual(_parse_memory_mb("2.328GiB / 4GiB"), 2383.87)
+        self.assertEqual(_parse_memory_mb("512MiB / 2GiB"), 512.0)
+        specs = sample_host_specs(1)
+        self.assertEqual(specs["node_id"], 1)
+        self.assertTrue(specs["cpu_model"])
+        self.assertGreater(specs["cpu_cores"], 0)
+        self.assertGreater(specs["total_ram_gb"], 0)
+        self.assertGreater(specs["total_storage_gb"], 0)
+        self.assertIsInstance(specs["nics"], list)
+        with TemporaryDirectory() as tmp:
+            c = Collector(f"http://127.0.0.1:{self.port}/telemetry", "demo-key", 1, queue_file=str(Path(tmp) / "q.jsonl"))
+            self.assertTrue(c.submit_host_specs(specs))
+            self.assertEqual(Handler.headers_seen[-1].get("X-API-Key"), "demo-key")
 
 
 if __name__ == "__main__":
