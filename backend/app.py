@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import os
 
 from dotenv import load_dotenv
@@ -16,13 +17,6 @@ from security import install_security
 from dashboard_api import api_bp
 
 
-BACKEND_API_ERRORS = {
-    "51050": (404, "Node not found."),
-    "51051": (400, "collected_at is required."),
-    "51052": (422, "Telemetry percentage is invalid."),
-}
-
-
 load_dotenv()
 
 # Ma loi nghiep vu do usp_record_telemetry / usp_record_telemetry_batch / usp_upsert_container_telemetry THROW
@@ -35,6 +29,11 @@ TELEMETRY_ERRORS = {
 }
 
 CONTAINER_STATUSES = {"RUNNING", "STOPPED", "PAUSED", "RESTARTING", "EXITED"}
+
+
+def _is_finite_number(value) -> bool:
+    """Return True for finite int/float values, excluding booleans and NaN/Inf."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -50,6 +49,26 @@ def find_node_id_by_api_key(raw_key: str):
     row = result.first() if result.returns_rows else None
     db.session.commit()
     return row[0] if row and row[0] is not None else None
+
+
+def _authenticate_collector_request():
+    """Authenticate collector requests via X-API-Key header."""
+    api_key = request.headers.get("X-API-Key", "")
+    node_id = find_node_id_by_api_key(api_key) if api_key else None
+    if node_id is None:
+        return None, (jsonify({"error": "API key khong hop le"}), 401)
+    return node_id, None
+
+
+def _handle_telemetry_db_error(app: Flask, exc: DBAPIError, error_title: str, sp_name: str):
+    """Roll back and translate stored procedure business errors into 422/500 responses."""
+    db.session.rollback()
+    detail = str(exc.orig)
+    for code, message in TELEMETRY_ERRORS.items():
+        if code in detail:
+            return jsonify({"error": error_title, "detail": message}), 422
+    app.logger.exception("%s failed", sp_name)
+    return jsonify({"error": "Loi may chu"}), 500
 
 
 def create_app() -> Flask:
@@ -88,10 +107,9 @@ def create_app() -> Flask:
     @app.post("/telemetry")
     def post_telemetry():
         # 1. Xac thuc truoc: thieu key hoac key sai/agent khong ACTIVE -> 401
-        api_key = request.headers.get("X-API-Key", "")
-        node_id = find_node_id_by_api_key(api_key) if api_key else None
-        if node_id is None:
-            return jsonify({"error": "API key khong hop le"}), 401
+        node_id, auth_err = _authenticate_collector_request()
+        if auth_err is not None:
+            return auth_err
 
         # 2. Kiem tra body
         payload = request.get_json(silent=True)
@@ -103,7 +121,7 @@ def create_app() -> Flask:
         unit = payload.get("unit")
         valid_body = (
             isinstance(metric_type, str) and metric_type
-            and isinstance(value, (int, float)) and not isinstance(value, bool)
+            and _is_finite_number(value)
             and isinstance(unit, str) and unit
         )
         if not valid_body:
@@ -129,22 +147,15 @@ def create_app() -> Flask:
             db.session.commit()
             event_hub.publish("telemetry", node_id=node_id, metric_type=metric_type)
         except DBAPIError as exc:
-            db.session.rollback()
-            detail = str(exc.orig)
-            for code, message in TELEMETRY_ERRORS.items():
-                if code in detail:
-                    return jsonify({"error": "Telemetry khong hop le", "detail": message}), 422
-            app.logger.exception("usp_record_telemetry failed")
-            return jsonify({"error": "Loi may chu"}), 500
+            return _handle_telemetry_db_error(app, exc, "Telemetry khong hop le", "usp_record_telemetry")
 
         return jsonify({"status": "recorded", "node_id": node_id}), 201
 
     @app.post("/telemetry/batch")
     def post_telemetry_batch():
-        api_key = request.headers.get("X-API-Key", "")
-        node_id = find_node_id_by_api_key(api_key) if api_key else None
-        if node_id is None:
-            return jsonify({"error": "API key khong hop le"}), 401
+        node_id, auth_err = _authenticate_collector_request()
+        if auth_err is not None:
+            return auth_err
 
         payload = request.get_json(silent=True)
         if isinstance(payload, dict) and isinstance(payload.get("metrics"), list):
@@ -170,7 +181,7 @@ def create_app() -> Flask:
             ts = item.get("timestamp")
             valid_item = (
                 isinstance(m_type, str) and bool(m_type)
-                and isinstance(val, (int, float)) and not isinstance(val, bool)
+                and _is_finite_number(val)
                 and isinstance(unit, str) and bool(unit)
                 and (ts is None or isinstance(ts, str))
             )
@@ -193,22 +204,15 @@ def create_app() -> Flask:
             db.session.commit()
             event_hub.publish("telemetry_batch", node_id=node_id, count=recorded_count)
         except DBAPIError as exc:
-            db.session.rollback()
-            detail = str(exc.orig)
-            for code, message in TELEMETRY_ERRORS.items():
-                if code in detail:
-                    return jsonify({"error": "Batch telemetry khong hop le", "detail": message}), 422
-            app.logger.exception("usp_record_telemetry_batch failed")
-            return jsonify({"error": "Loi may chu"}), 500
+            return _handle_telemetry_db_error(app, exc, "Batch telemetry khong hop le", "usp_record_telemetry_batch")
 
         return jsonify({"status": "recorded", "node_id": node_id, "count": recorded_count}), 201
 
     @app.post("/telemetry/containers")
     def post_container_telemetry():
-        api_key = request.headers.get("X-API-Key", "")
-        node_id = find_node_id_by_api_key(api_key) if api_key else None
-        if node_id is None:
-            return jsonify({"error": "API key khong hop le"}), 401
+        node_id, auth_err = _authenticate_collector_request()
+        if auth_err is not None:
+            return auth_err
 
         payload = request.get_json(silent=True)
         if isinstance(payload, dict) and isinstance(payload.get("containers"), list):
@@ -242,8 +246,8 @@ def create_app() -> Flask:
                 and isinstance(name, str) and bool(name.strip())
                 and isinstance(image, str) and bool(image.strip())
                 and isinstance(status, str) and status in CONTAINER_STATUSES
-                and isinstance(cpu, (int, float)) and not isinstance(cpu, bool)
-                and isinstance(mem, (int, float)) and not isinstance(mem, bool)
+                and _is_finite_number(cpu)
+                and _is_finite_number(mem)
                 and isinstance(restarts, int) and not isinstance(restarts, bool) and restarts >= 0
             )
             if not valid_item:
@@ -275,22 +279,17 @@ def create_app() -> Flask:
             db.session.commit()
             event_hub.publish("containers", node_id=node_id, count=len(normalized))
         except DBAPIError as exc:
-            db.session.rollback()
-            detail = str(exc.orig)
-            for code, message in TELEMETRY_ERRORS.items():
-                if code in detail:
-                    return jsonify({"error": "Container telemetry khong hop le", "detail": message}), 422
-            app.logger.exception("usp_upsert_container_telemetry failed")
-            return jsonify({"error": "Loi may chu"}), 500
+            return _handle_telemetry_db_error(
+                app, exc, "Container telemetry khong hop le", "usp_upsert_container_telemetry"
+            )
 
         return jsonify({"status": "recorded", "node_id": node_id, "count": len(normalized)}), 201
 
     @app.post("/telemetry/host")
     def post_host_specs():
-        api_key = request.headers.get("X-API-Key", "")
-        node_id = find_node_id_by_api_key(api_key) if api_key else None
-        if node_id is None:
-            return jsonify({"error": "API key khong hop le"}), 401
+        node_id, auth_err = _authenticate_collector_request()
+        if auth_err is not None:
+            return auth_err
 
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
@@ -313,8 +312,8 @@ def create_app() -> Flask:
         valid_body = (
             isinstance(cpu_model, str) and bool(cpu_model.strip())
             and isinstance(cpu_cores, int) and not isinstance(cpu_cores, bool) and cpu_cores > 0
-            and isinstance(total_ram_gb, (int, float)) and not isinstance(total_ram_gb, bool) and total_ram_gb > 0
-            and isinstance(total_storage_gb, (int, float)) and not isinstance(total_storage_gb, bool) and total_storage_gb > 0
+            and _is_finite_number(total_ram_gb) and total_ram_gb > 0
+            and _is_finite_number(total_storage_gb) and total_storage_gb > 0
             and isinstance(os_name, str) and bool(os_name.strip())
             and isinstance(os_version, str) and bool(os_version.strip())
             and (ip_address is None or isinstance(ip_address, str))
@@ -376,13 +375,7 @@ def create_app() -> Flask:
             db.session.commit()
             event_hub.publish("host_specs", node_id=node_id)
         except DBAPIError as exc:
-            db.session.rollback()
-            detail = str(exc.orig)
-            for code, message in TELEMETRY_ERRORS.items():
-                if code in detail:
-                    return jsonify({"error": "Host specs khong hop le", "detail": message}), 422
-            app.logger.exception("usp_upsert_node_host_specs failed")
-            return jsonify({"error": "Loi may chu"}), 500
+            return _handle_telemetry_db_error(app, exc, "Host specs khong hop le", "usp_upsert_node_host_specs")
 
         return jsonify({"status": "recorded", "node_id": node_id}), 201
 

@@ -869,29 +869,55 @@ export default function Dashboard() {
         <div className="login-body">
           <h1 id="login-heading">{authView === 'login' ? t.loginTitle : authView === 'forgot' ? t.forgotPassword : t.requestAccount}</h1>
           <p>{authView === 'login' ? t.loginSubtitle : authView === 'forgot' ? t.forgotPasswordHelp : t.requestAccountHelp}</p>
-          {authView === 'login' && <form className="login-card" aria-labelledby="login-heading" onSubmit={login}>
-            <label>{t.username}<input autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
-            <label>{t.password}<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-            {mfaRequired && <label>{t.mfaCode}<input inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={e => setOtp(e.target.value)} placeholder={t.mfaCodeHelp} required /></label>}
-            {error && <div className="error" role="alert">{error}</div>}
-            <button disabled={loading}>{loading ? t.signingIn : t.continueBtn}</button>
-            <div className="auth-links"><button type="button" className="text-button" onClick={() => { setAuthView('forgot'); setError(''); }}>{t.forgotPassword}</button><button type="button" className="text-button" onClick={() => { setAuthView('request'); setError(''); }}>{t.requestAccount}</button></div>
-          </form>}
-          {authView === 'forgot' && <form className="login-card" onSubmit={resetPassword}>
-            <label>{t.recoveryCode}<input value={recoveryCode} onChange={e => setRecoveryCode(e.target.value)} placeholder={t.recoveryCodePlaceholder} required /></label>
-            <label>{t.newPassword}<input type="password" minLength={12} value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label>
-            {error && <div className="error" role="alert">{error}</div>}<button disabled={loading}>{loading ? t.saving : t.resetPassword}</button>
-            <button type="button" className="text-button" onClick={() => setAuthView('login')}>{t.backToLogin}</button>
-          </form>}
-          {authView === 'request' && <form className="login-card" onSubmit={requestAccess}>
-            <label>{t.username}<input value={requestForm.username} onChange={e => setRequestForm({ ...requestForm, username: e.target.value })} required /></label>
-            <label>{t.admin.email}<input type="email" value={requestForm.email} onChange={e => setRequestForm({ ...requestForm, email: e.target.value })} required /></label>
-            <label>{t.admin.fullName}<input value={requestForm.full_name} onChange={e => setRequestForm({ ...requestForm, full_name: e.target.value })} required /></label>
-            <label>{t.admin.role}<select value={requestForm.requested_role} onChange={e => setRequestForm({ ...requestForm, requested_role: e.target.value })}><option value="FIELD_TECHNICIAN">{t.roles.FIELD_TECHNICIAN}</option><option value="SYSTEM_OPERATOR">{t.roles.SYSTEM_OPERATOR}</option></select></label>
-            <label>{t.requestNote}<textarea rows={3} value={requestForm.note} onChange={e => setRequestForm({ ...requestForm, note: e.target.value })} /></label>
-            {error && <div className="error" role="alert">{error}</div>}<button disabled={loading}>{loading ? t.saving : t.submitRequest}</button>
-            <button type="button" className="text-button" onClick={() => setAuthView('login')}>{t.backToLogin}</button>
-          </form>}
+          {authView === 'login' && (
+            <form className="login-card" aria-labelledby="login-heading" onSubmit={login}>
+              <label>{t.username}<input autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
+              <label>{t.password}<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
+              {mfaRequired && (
+                <label>
+                  {t.mfaCode}
+                  <input inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={e => setOtp(e.target.value)} placeholder={t.mfaCodeHelp} required />
+                </label>
+              )}
+              {error && <div className="error" role="alert">{error}</div>}
+              <button disabled={loading}>{loading ? t.signingIn : t.continueBtn}</button>
+              <div className="auth-links">
+                <button type="button" className="text-button" onClick={() => { setAuthView('forgot'); setError(''); }}>
+                  {t.forgotPassword}
+                </button>
+                <button type="button" className="text-button" onClick={() => { setAuthView('request'); setError(''); }}>
+                  {t.requestAccount}
+                </button>
+              </div>
+            </form>
+          )}
+          {authView === 'forgot' && (
+            <form className="login-card" onSubmit={resetPassword}>
+              <label>{t.recoveryCode}<input value={recoveryCode} onChange={e => setRecoveryCode(e.target.value)} placeholder={t.recoveryCodePlaceholder} required /></label>
+              <label>{t.newPassword}<input type="password" minLength={12} value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label>
+              {error && <div className="error" role="alert">{error}</div>}
+              <button disabled={loading}>{loading ? t.saving : t.resetPassword}</button>
+              <button type="button" className="text-button" onClick={() => setAuthView('login')}>{t.backToLogin}</button>
+            </form>
+          )}
+          {authView === 'request' && (
+            <form className="login-card" onSubmit={requestAccess}>
+              <label>{t.username}<input value={requestForm.username} onChange={e => setRequestForm({ ...requestForm, username: e.target.value })} required /></label>
+              <label>{t.admin.email}<input type="email" value={requestForm.email} onChange={e => setRequestForm({ ...requestForm, email: e.target.value })} required /></label>
+              <label>{t.admin.fullName}<input value={requestForm.full_name} onChange={e => setRequestForm({ ...requestForm, full_name: e.target.value })} required /></label>
+              <label>
+                {t.admin.role}
+                <select value={requestForm.requested_role} onChange={e => setRequestForm({ ...requestForm, requested_role: e.target.value })}>
+                  <option value="FIELD_TECHNICIAN">{t.roles.FIELD_TECHNICIAN}</option>
+                  <option value="SYSTEM_OPERATOR">{t.roles.SYSTEM_OPERATOR}</option>
+                </select>
+              </label>
+              <label>{t.requestNote}<textarea rows={3} value={requestForm.note} onChange={e => setRequestForm({ ...requestForm, note: e.target.value })} /></label>
+              {error && <div className="error" role="alert">{error}</div>}
+              <button disabled={loading}>{loading ? t.saving : t.submitRequest}</button>
+              <button type="button" className="text-button" onClick={() => setAuthView('login')}>{t.backToLogin}</button>
+            </form>
+          )}
         </div>
       </main>
     );
@@ -903,6 +929,14 @@ export default function Dashboard() {
   const canWrite = WRITE_ROLES.has(user?.role ?? '');
   const isAdmin = user?.role === 'ADMINISTRATOR';
   const initials = displayName.trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase();
+  const openTickets = tickets.filter(item => item.status !== 'CLOSED');
+  const myWorkTickets = openTickets.filter(
+    item =>
+      item.assigned_to_user_id === user?.id
+      || item.assigned_to_username === user?.username
+      || (canWrite && !item.assigned_to_user_id)
+      || (canWrite && item.closure_status === 'PENDING'),
+  );
 
   const uniqueRooms = sitesRooms.filter(
     (sr, idx, arr) => sr.room_id != null && arr.findIndex(x => x.room_id === sr.room_id) === idx,
@@ -1049,7 +1083,57 @@ export default function Dashboard() {
       {error && <div className="error banner" role="alert">{error}</div>}
       {check?.failed && <div className="notice-muted">{showData ? t.staleDetail : t.loadError}</div>}
       {notice && <div className="notice banner" role="status">{notice}</div>}
-      {accountOpen && <section className="account-panel panel"><div className="section-head"><div><h2>{t.account}</h2><p className="section-sub">{displayName} · {user ? (t.roles[user.role] ?? user.role) : ''}</p></div><button type="button" className="compact-action secondary" onClick={() => setAccountOpen(false)}>{t.close}</button></div><form className="ticket-form" onSubmit={changePassword}><label>{t.currentPassword}<input type="password" minLength={12} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required /></label><label>{t.newPassword}<input type="password" minLength={12} value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label><div className="ticket-form-footer"><button disabled={loading}>{loading ? t.saving : t.changePassword}</button><button type="button" className="secondary" onClick={() => void revokeOtherSessions()}>{t.revokeOtherSessions}</button></div></form>{isAdmin && <div className="account-security"><h3>{t.mfaTitle}</h3>{!mfaSecret && !mfaBackupCodes.length && <button type="button" className="secondary compact-action" onClick={() => void beginMfaSetup()}>{t.enableMfa}</button>}{mfaSecret && <div><p>{t.mfaSecret}: <code>{mfaSecret}</code></p><input inputMode="numeric" placeholder={t.mfaCodeHelp} value={mfaCode} onChange={e => setMfaCode(e.target.value)} /><button type="button" className="compact-action" onClick={() => void enableMfa()}>{t.confirmMfa}</button></div>}{mfaBackupCodes.length > 0 && <p>{t.mfaBackupCodes}: <code>{mfaBackupCodes.join(' · ')}</code></p>}</div>}</section>}
+      {accountOpen && (
+        <section className="account-panel panel">
+          <div className="section-head">
+            <div>
+              <h2>{t.account}</h2>
+              <p className="section-sub">{displayName} · {user ? (t.roles[user.role] ?? user.role) : ''}</p>
+            </div>
+            <button type="button" className="compact-action secondary" onClick={() => setAccountOpen(false)}>
+              {t.close}
+            </button>
+          </div>
+          <form className="ticket-form" onSubmit={changePassword}>
+            <label>
+              {t.currentPassword}
+              <input type="password" minLength={12} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required />
+            </label>
+            <label>
+              {t.newPassword}
+              <input type="password" minLength={12} value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
+            </label>
+            <div className="ticket-form-footer">
+              <button disabled={loading}>{loading ? t.saving : t.changePassword}</button>
+              <button type="button" className="secondary" onClick={() => void revokeOtherSessions()}>
+                {t.revokeOtherSessions}
+              </button>
+            </div>
+          </form>
+          {isAdmin && (
+            <div className="account-security">
+              <h3>{t.mfaTitle}</h3>
+              {!mfaSecret && !mfaBackupCodes.length && (
+                <button type="button" className="secondary compact-action" onClick={() => void beginMfaSetup()}>
+                  {t.enableMfa}
+                </button>
+              )}
+              {mfaSecret && (
+                <div>
+                  <p>{t.mfaSecret}: <code>{mfaSecret}</code></p>
+                  <input inputMode="numeric" placeholder={t.mfaCodeHelp} value={mfaCode} onChange={e => setMfaCode(e.target.value)} />
+                  <button type="button" className="compact-action" onClick={() => void enableMfa()}>
+                    {t.confirmMfa}
+                  </button>
+                </div>
+              )}
+              {mfaBackupCodes.length > 0 && (
+                <p>{t.mfaBackupCodes}: <code>{mfaBackupCodes.join(' · ')}</code></p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
       {issuedApiKey && (
         <div className="notice banner key-banner" role="status">
           <span>{t.twin.issuedKeyNotice} <code>{issuedApiKey}</code></span>
@@ -1733,19 +1817,114 @@ export default function Dashboard() {
       {tab === 'my-work' && showData && (
         <>
           <section className="panel">
-            <div className="section-head"><h2>{t.myWork.tickets}</h2><span className="list-count">{tickets.filter(item => item.status !== 'CLOSED').length}</span></div>
+            <div className="section-head">
+              <h2>{t.myWork.tickets}</h2>
+              <span className="list-count">{openTickets.length}</span>
+            </div>
             <div className="ticket-list">
-              {tickets.filter(item => item.status !== 'CLOSED' && (item.assigned_to_user_id === user?.id || item.assigned_to_username === user?.username || (canWrite && !item.assigned_to_user_id) || (canWrite && item.closure_status === 'PENDING'))).map(item => (
-                <article className="ticket-row" key={item.id}><div className="ticket-main"><strong>#{item.id} · {item.title}</strong><p>{item.node_name} · {item.priority} · {item.status.replaceAll('_', ' ')}</p>{item.assigned_to_username && <span className="ticket-meta">{t.tickets.assignedTo}: {item.assigned_to_username}</span>}</div><div className="ticket-side"><span className={`ticket-status ticket-status-${item.status.toLowerCase()}`}>{item.closure_status === 'PENDING' ? t.tickets.closurePending : item.status.replaceAll('_', ' ')}</span>{canWrite && item.status === 'OPEN' && <button className="compact-action" onClick={() => void startWork(item.id)}>{t.tickets.assignBtn}</button>}{item.status === 'IN_PROGRESS' && <button className="compact-action secondary" onClick={() => setTab('overview')}>{t.tickets.notesBtn}</button>}</div></article>
+              {myWorkTickets.map(item => (
+                <article className="ticket-row" key={item.id}>
+                  <div className="ticket-main">
+                    <strong>#{item.id} · {item.title}</strong>
+                    <p>{item.node_name} · {item.priority} · {item.status.replaceAll('_', ' ')}</p>
+                    {item.assigned_to_username && (
+                      <span className="ticket-meta">{t.tickets.assignedTo}: {item.assigned_to_username}</span>
+                    )}
+                  </div>
+                  <div className="ticket-side">
+                    <span className={`ticket-status ticket-status-${item.status.toLowerCase()}`}>
+                      {item.closure_status === 'PENDING' ? t.tickets.closurePending : item.status.replaceAll('_', ' ')}
+                    </span>
+                    {canWrite && item.status === 'OPEN' && (
+                      <button className="compact-action" onClick={() => void startWork(item.id)}>
+                        {t.tickets.assignBtn}
+                      </button>
+                    )}
+                    {item.status === 'IN_PROGRESS' && (
+                      <button className="compact-action secondary" onClick={() => setTab('overview')}>
+                        {t.tickets.notesBtn}
+                      </button>
+                    )}
+                  </div>
+                </article>
               ))}
-              {!tickets.some(item => item.status !== 'CLOSED' && (item.assigned_to_user_id === user?.id || item.assigned_to_username === user?.username || (canWrite && !item.assigned_to_user_id) || (canWrite && item.closure_status === 'PENDING'))) && <div className="empty">{t.myWork.noTickets}</div>}
+              {!myWorkTickets.length && <div className="empty">{t.myWork.noTickets}</div>}
             </div>
           </section>
-          {canWrite && <section className="panel"><div className="section-head"><h2>{t.myWork.alerts}</h2><span className="list-count">{alerts.length}</span></div><div className="alert-list">{alerts.map(alert => <article className="alert-row" key={alert.id}><span className={`severity severity-${alert.severity.toLowerCase()}`}>{alert.severity}</span><div><strong>{alert.node_name} · {alert.alert_type}</strong><p>{alert.message}</p></div><button type="button" className="compact-action" disabled={alert.status !== 'OPEN'} onClick={() => void acknowledgeAlert(alert)}>{alert.status === 'OPEN' ? t.alerts.acknowledge : alert.status}</button></article>)}{!alerts.length && <div className="empty">{t.myWork.noAlerts}</div>}</div></section>}
+          {canWrite && (
+            <section className="panel">
+              <div className="section-head">
+                <h2>{t.myWork.alerts}</h2>
+                <span className="list-count">{alerts.length}</span>
+              </div>
+              <div className="alert-list">
+                {alerts.map(alert => (
+                  <article className="alert-row" key={alert.id}>
+                    <span className={`severity severity-${alert.severity.toLowerCase()}`}>{alert.severity}</span>
+                    <div>
+                      <strong>{alert.node_name} · {alert.alert_type}</strong>
+                      <p>{alert.message}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="compact-action"
+                      disabled={alert.status !== 'OPEN'}
+                      onClick={() => void acknowledgeAlert(alert)}
+                    >
+                      {alert.status === 'OPEN' ? t.alerts.acknowledge : alert.status}
+                    </button>
+                  </article>
+                ))}
+                {!alerts.length && <div className="empty">{t.myWork.noAlerts}</div>}
+              </div>
+            </section>
+          )}
         </>
       )}
 
-      {tab === 'handover' && showData && <section className="panel"><div className="section-head"><div><h2>{t.handover.title}</h2><p className="section-sub">{t.handover.subtitle}</p></div><span className="list-count">{tickets.filter(item => item.status !== 'CLOSED').length} {t.myWork.tickets.toLowerCase()} · {alerts.length} {t.myWork.alerts.toLowerCase()}</span></div>{!handoverAvailable && <div className="notice-muted" role="status">{t.handover.migration}</div>}<div className="handover-snapshot"><h3>{t.handover.activeWork}</h3>{tickets.filter(item => item.status !== 'CLOSED').slice(0, 12).map(item => <p key={item.id}>#{item.id} · {item.node_name} · {item.title} · {item.status.replaceAll('_', ' ')}</p>)}{!tickets.some(item => item.status !== 'CLOSED') && <p>{t.handover.noActiveWork}</p>}</div>{handoverAvailable && <form className="ticket-form handover-form" onSubmit={e => void addHandover(e)}><label>{t.handover.note}<textarea rows={4} maxLength={1000} value={handoverDraft} onChange={e => setHandoverDraft(e.target.value)} required /></label><div className="ticket-form-footer"><button disabled={!handoverDraft.trim()}>{t.handover.save}</button></div></form>}<div className="handover-notes">{handoverNotes.map(note => <article key={note.id}><p>{note.note}</p><span>{note.username} · {new Date(note.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</span></article>)}{handoverAvailable && !handoverNotes.length && <p className="empty">{t.handover.noNotes}</p>}</div></section>}
+      {tab === 'handover' && showData && (
+        <section className="panel">
+          <div className="section-head">
+            <div>
+              <h2>{t.handover.title}</h2>
+              <p className="section-sub">{t.handover.subtitle}</p>
+            </div>
+            <span className="list-count">
+              {openTickets.length} {t.myWork.tickets.toLowerCase()} · {alerts.length} {t.myWork.alerts.toLowerCase()}
+            </span>
+          </div>
+          {!handoverAvailable && (
+            <div className="notice-muted" role="status">{t.handover.migration}</div>
+          )}
+          <div className="handover-snapshot">
+            <h3>{t.handover.activeWork}</h3>
+            {openTickets.slice(0, 12).map(item => (
+              <p key={item.id}>#{item.id} · {item.node_name} · {item.title} · {item.status.replaceAll('_', ' ')}</p>
+            ))}
+            {!openTickets.length && <p>{t.handover.noActiveWork}</p>}
+          </div>
+          {handoverAvailable && (
+            <form className="ticket-form handover-form" onSubmit={e => void addHandover(e)}>
+              <label>
+                {t.handover.note}
+                <textarea rows={4} maxLength={1000} value={handoverDraft} onChange={e => setHandoverDraft(e.target.value)} required />
+              </label>
+              <div className="ticket-form-footer">
+                <button disabled={!handoverDraft.trim()}>{t.handover.save}</button>
+              </div>
+            </form>
+          )}
+          <div className="handover-notes">
+            {handoverNotes.map(note => (
+              <article key={note.id}>
+                <p>{note.note}</p>
+                <span>{note.username} · {new Date(note.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</span>
+              </article>
+            ))}
+            {handoverAvailable && !handoverNotes.length && <p className="empty">{t.handover.noNotes}</p>}
+          </div>
+        </section>
+      )}
 
       {tab === 'ar' && (
         <ArScannerTab

@@ -21,6 +21,39 @@ TICKET_STATUSES = {"OPEN", "IN_PROGRESS", "PENDING_CLOSURE", "CLOSED"}
 MAINTENANCE_TYPES = {"PREVENTIVE", "CORRECTIVE", "EMERGENCY", "INSPECTION"}
 VALID_ROLES = {ROLE_ADMIN, ROLE_OPERATOR, ROLE_TECHNICIAN}
 
+_PROCEDURE_ERROR_CODES = {
+    "51050": (400, "Invalid password format or missing password."),
+    "51060": (404, "Alert not found."),
+    "51061": (409, "Alert is not open."),
+    "51062": (404, "Node not found."),
+    "51063": (400, "Invalid priority."),
+    "51064": (404, "Alert not found."),
+    "51065": (404, "Ticket not found."),
+    "51066": (409, "Invalid ticket status transition."),
+    "51067": (400, "Invalid ticket status."),
+    "51070": (404, "Rack not found."),
+    "51071": (404, "Marker or node not found."),
+    "51072": (404, "Assignee user not found or inactive."),
+    "51073": (409, "Invalid closure decision or no pending closure request."),
+    "51074": (400, "Invalid alert threshold configuration."),
+    "51075": (400, "Invalid container status."),
+    "51076": (404, "Container not found."),
+    "51077": (409, "Marker code already exists."),
+    "51078": (400, "Invalid marker type or code."),
+    "51079": (400, "Invalid maintenance type."),
+    "51080": (400, "Invalid role name."),
+    "51081": (409, "User not found or username/email already exists."),
+    "51082": (400, "Invalid node status."),
+    "51083": (400, "Invalid hierarchy entity_type."),
+    "51084": (409, "Hierarchy code already exists."),
+    "51085": (404, "Site not found."),
+    "51086": (404, "Room not found."),
+    "51087": (400, "group_by must be SITE, ROOM, RACK or NODE."),
+    "51088": (400, "Invalid collector agent configuration."),
+    "51090": (403, "Audit logs are immutable."),
+    "51130": (403, "This operation requires an assigned ticket."),
+}
+
 
 def _rows(statement, params=None):
     return [dict(row) for row in db.session.execute(text(statement), params or {}).mappings().all()]
@@ -56,39 +89,7 @@ def _parse_optional_iso_datetime(value):
 def _procedure_error(exc):
     db.session.rollback()
     message = str(exc.orig)
-    codes = {
-        "51050": (400, "Invalid password format or missing password."),
-        "51060": (404, "Alert not found."),
-        "51061": (409, "Alert is not open."),
-        "51062": (404, "Node not found."),
-        "51063": (400, "Invalid priority."),
-        "51064": (404, "Alert not found."),
-        "51065": (404, "Ticket not found."),
-        "51066": (409, "Invalid ticket status transition."),
-        "51067": (400, "Invalid ticket status."),
-        "51070": (404, "Rack not found."),
-        "51071": (404, "Marker or node not found."),
-        "51072": (404, "Assignee user not found or inactive."),
-        "51073": (409, "Invalid closure decision or no pending closure request."),
-        "51074": (400, "Invalid alert threshold configuration."),
-        "51075": (400, "Invalid container status."),
-        "51076": (404, "Container not found."),
-        "51077": (409, "Marker code already exists."),
-        "51078": (400, "Invalid marker type or code."),
-        "51079": (400, "Invalid maintenance type."),
-        "51080": (400, "Invalid role name."),
-        "51081": (409, "User not found or username/email already exists."),
-        "51082": (400, "Invalid node status."),
-        "51083": (400, "Invalid hierarchy entity_type."),
-        "51084": (409, "Hierarchy code already exists."),
-        "51085": (404, "Site not found."),
-        "51086": (404, "Room not found."),
-        "51087": (400, "group_by must be SITE, ROOM, RACK or NODE."),
-        "51088": (400, "Invalid collector agent configuration."),
-        "51090": (403, "Audit logs are immutable."),
-        "51130": (403, "This operation requires an assigned ticket."),
-    }
-    for code, (status, detail) in codes.items():
+    for code, (status, detail) in _PROCEDURE_ERROR_CODES.items():
         if code in message:
             return jsonify({"error": detail}), status
     return jsonify({"error": "Database operation failed."}), 503
@@ -1030,7 +1031,15 @@ def review_account_request(request_id):
             "role_name": role, "bootstrap_hash": generate_password_hash(bootstrap) if bootstrap else None, "code_hash": code_hash,
         })
         db.session.commit()
-        return jsonify({"status": decision.lower(), "recovery_code": response_code, "user_id": rows[0].get("user_id") if rows else None}), 200, {"Cache-Control": "no-store"}
+        return (
+            jsonify({
+                "status": decision.lower(),
+                "recovery_code": response_code,
+                "user_id": rows[0].get("user_id") if rows else None,
+            }),
+            200,
+            {"Cache-Control": "no-store"},
+        )
     except DBAPIError as exc:
         return _procedure_error(exc)
 

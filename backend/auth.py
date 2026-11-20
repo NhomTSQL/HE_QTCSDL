@@ -1,8 +1,9 @@
+import base64
 import datetime
 import functools
-import base64
 import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -38,6 +39,8 @@ def _jwt_secret():
 
 def _mfa_key():
     value = current_app.config.get("MFA_ENCRYPTION_KEY")
+    if not isinstance(value, str) or not value:
+        raise ValueError("MFA_ENCRYPTION_KEY must be a URL-safe base64 32-byte key")
     try:
         key = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
     except Exception as exc:
@@ -241,17 +244,23 @@ def enable_mfa():
     payload = request.get_json(silent=True) or {}
     code = payload.get("code")
     try:
-        row = db.session.execute(text("{CALL dbo.usp_get_own_mfa_state (:user_id)}"), {"user_id": g.current_user["user_id"]}).mappings().first()
+        row = db.session.execute(
+            text("{CALL dbo.usp_get_own_mfa_state (:user_id)}"),
+            {"user_id": g.current_user["user_id"]},
+        ).mappings().first()
         if not row or not row["mfa_setup_secret_encrypted"]:
             return jsonify(error="mfa_setup_required"), 409
         secret = _decrypt_mfa(g.current_user["user_id"], row["mfa_setup_secret_encrypted"])
         if not _check_totp(secret, code):
             return jsonify(error="invalid_mfa_code"), 400
         codes = [secrets.token_hex(6).upper() for _ in range(10)]
-        db.session.execute(text("{CALL dbo.usp_enable_mfa (:user_id, :backup_hashes)}"), {
-            "user_id": g.current_user["user_id"],
-            "backup_hashes": __import__("json").dumps([hashlib.sha256(item.encode()).hexdigest() for item in codes]),
-        })
+        db.session.execute(
+            text("{CALL dbo.usp_enable_mfa (:user_id, :backup_hashes)}"),
+            {
+                "user_id": g.current_user["user_id"],
+                "backup_hashes": json.dumps([hashlib.sha256(item.encode()).hexdigest() for item in codes]),
+            },
+        )
         db.session.commit()
     except (DBAPIError, ValueError, ImportError):
         db.session.rollback()
@@ -265,7 +274,10 @@ def disable_mfa():
     payload = request.get_json(silent=True) or {}
     code = payload.get("code")
     try:
-        row = db.session.execute(text("{CALL dbo.usp_get_own_mfa_state (:user_id)}"), {"user_id": g.current_user["user_id"]}).mappings().first()
+        row = db.session.execute(
+            text("{CALL dbo.usp_get_own_mfa_state (:user_id)}"),
+            {"user_id": g.current_user["user_id"]},
+        ).mappings().first()
         if not row or not row["mfa_enabled"]:
             return jsonify(error="mfa_not_enabled"), 409
         valid = _check_totp(_decrypt_mfa(g.current_user["user_id"], row["mfa_secret_encrypted"]), code)
@@ -300,14 +312,23 @@ def request_access():
             or not isinstance(note, str) or len(note) > 500
             or not isinstance(requested_role, str) or requested_role not in {ROLE_TECHNICIAN, ROLE_OPERATOR}):
         return jsonify(error="invalid_request"), 400
+    source_ip_hash = hashlib.sha256((secret + (request.remote_addr or "unknown")).encode()).hexdigest()
     try:
-        db.session.execute(text("""
-            EXEC dbo.usp_request_account_access
-                @username=:username, @email=:email, @full_name=:full_name,
-                @requested_role=:requested_role, @note=:note, @source_ip_hash=:source_ip_hash
-        """), {"username": username.strip(), "email": email.strip(),
-                "full_name": full_name.strip(), "requested_role": requested_role,
-                "note": note.strip(), "source_ip_hash": hashlib.sha256((secret + (request.remote_addr or "unknown")).encode()).hexdigest()})
+        db.session.execute(
+            text("""
+                EXEC dbo.usp_request_account_access
+                    @username=:username, @email=:email, @full_name=:full_name,
+                    @requested_role=:requested_role, @note=:note, @source_ip_hash=:source_ip_hash
+            """),
+            {
+                "username": username.strip(),
+                "email": email.strip(),
+                "full_name": full_name.strip(),
+                "requested_role": requested_role,
+                "note": note.strip(),
+                "source_ip_hash": source_ip_hash,
+            },
+        )
         db.session.commit()
     except DBAPIError as exc:
         db.session.rollback()
@@ -424,7 +445,10 @@ def login():
 @require_roles()
 def logout():
     try:
-        db.session.execute(text("{CALL dbo.usp_revoke_auth_session (:jti, :user_id)}"), {"jti": g.current_user["jti"], "user_id": g.current_user["user_id"]})
+        db.session.execute(
+            text("{CALL dbo.usp_revoke_auth_session (:jti, :user_id)}"),
+            {"jti": g.current_user["jti"], "user_id": g.current_user["user_id"]},
+        )
         db.session.commit()
     except DBAPIError:
         db.session.rollback()
@@ -463,6 +487,11 @@ _DEV_PASSWORD_PLACEHOLDER = "replace-with-local-dev-password"
 
 def sync_dev_passwords(app) -> None:
     """Dong bo mat khau dev tu bien moi truong AR_IMMS_DEV_PASSWORD cho 3 user mau."""
+    if (
+        os.environ.get("FLASK_ENV", "").strip().lower() == "production"
+        or os.environ.get("AR_IMMS_ENV", "").strip().lower() == "production"
+    ):
+        return
     dev_password = (os.environ.get("AR_IMMS_DEV_PASSWORD") or "").strip()
     if not dev_password or dev_password == _DEV_PASSWORD_PLACEHOLDER or len(dev_password) < 8:
         return

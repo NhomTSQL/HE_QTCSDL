@@ -105,9 +105,7 @@ From web:
     node --test tests/security.test.cjs
     npm.cmd run build
 
-Observed: 22 backend test methods passed, including four forbidden-object mutation
-subcases; 6 proxy/CSV tests passed. SQL is mocked and proxy tests run transpiled
-modules, so neither suite proves the live database or browser deployment is secure.
+Observed: 22 isolated security regression methods in `test_security_regressions.py` passed against mocked SQL; additionally, migrations `database/25_password_recovery.sql` and `database/26_security_hardening.sql` have been applied and verified on the local SQL Server instance with all 53 backend integration/regression tests passing, plus JSON 404/405/413 handlers and response security headers (`X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) configured in Flask and Next.js (`web/next.config.mjs`). 6 proxy/CSV security tests passed.
 
 ## Reference criteria
 

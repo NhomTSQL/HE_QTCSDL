@@ -69,14 +69,15 @@ class Collector:
         if not self.queue_path.exists():
             return
         try:
-            for line in self.queue_path.open("r", encoding="utf-8"):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    self.queue.append(json.loads(line))
-                except json.JSONDecodeError:
-                    LOG.warning("Ignoring corrupt queued payload")
+            with self.queue_path.open("r", encoding="utf-8") as stream:
+                for line in stream:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        self.queue.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        LOG.warning("Ignoring corrupt queued payload")
         except OSError as exc:
             LOG.warning("Could not read queue: %s", exc)
 
@@ -172,33 +173,26 @@ class Collector:
         self._save_queue()
         return 0
 
+    def _post_optional(self, url: str, body: Any, label: str) -> bool:
+        try:
+            response = self.session.post(
+                url,
+                json=body,
+                headers={"X-API-Key": self.api_key},
+                timeout=5,
+            )
+            return 200 <= response.status_code < 300
+        except requests.RequestException as exc:
+            LOG.warning("%s telemetry request failed: %s", label, exc)
+            return False
+
     def submit_containers(self, containers: List[Dict[str, Any]]) -> bool:
         if not containers:
             return True
-        try:
-            response = self.session.post(
-                self.containers_url,
-                json={"containers": containers},
-                headers={"X-API-Key": self.api_key},
-                timeout=5,
-            )
-            return 200 <= response.status_code < 300
-        except requests.RequestException as exc:
-            LOG.warning("Container telemetry request failed: %s", exc)
-            return False
+        return self._post_optional(self.containers_url, {"containers": containers}, "Container")
 
     def submit_host_specs(self, specs: Dict[str, Any]) -> bool:
-        try:
-            response = self.session.post(
-                self.host_url,
-                json=specs,
-                headers={"X-API-Key": self.api_key},
-                timeout=5,
-            )
-            return 200 <= response.status_code < 300
-        except requests.RequestException as exc:
-            LOG.warning("Host specs telemetry request failed: %s", exc)
-            return False
+        return self._post_optional(self.host_url, specs, "Host specs")
 
     def run_forever(self) -> None:
         LOG.info("Starting collector node_id=%d -> %s (every %ds)", self.node_id, self.api_url, self.interval)
@@ -225,6 +219,10 @@ class Collector:
                 time.sleep(remaining)
 
 
+def _parse_bool_env(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default).strip().lower() in {"1", "true", "yes"}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="AR-IMMS Telemetry Collector")
     parser.add_argument("--env-file", default=str(Path(__file__).resolve().parent / ".env"), help="Path to .env file")
@@ -235,6 +233,7 @@ def main() -> int:
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(message)s",
     )
+    collector: Optional[Collector] = None
     try:
         api_url = os.environ.get("API_URL", "http://localhost:5000/telemetry")
         api_key = os.environ.get("API_KEY") or os.environ.get("AGENT_KEY", "")
@@ -242,11 +241,11 @@ def main() -> int:
         interval = int(os.environ.get("INTERVAL_SECONDS", "5"))
         queue_file = os.environ.get("QUEUE_FILE", f"telemetry-queue-node{node_id}.jsonl")
         queue_max = int(os.environ.get("QUEUE_MAX_ITEMS", "1000"))
-        sync_containers = os.environ.get("SYNC_CONTAINERS", "1").strip().lower() in {"1", "true", "yes"}
+        sync_containers = _parse_bool_env("SYNC_CONTAINERS")
         containers_url = os.environ.get("CONTAINERS_API_URL")
-        use_batch = os.environ.get("USE_BATCH", "1").strip().lower() in {"1", "true", "yes"}
+        use_batch = _parse_bool_env("USE_BATCH")
         batch_url = os.environ.get("BATCH_API_URL")
-        sync_host_specs = os.environ.get("SYNC_HOST_SPECS", "1").strip().lower() in {"1", "true", "yes"}
+        sync_host_specs = _parse_bool_env("SYNC_HOST_SPECS")
         host_url = os.environ.get("HOST_API_URL")
 
         collector = Collector(
@@ -256,12 +255,16 @@ def main() -> int:
             host_url=host_url, sync_host_specs=sync_host_specs,
         )
         collector.run_forever()
+        return 0
     except KeyboardInterrupt:
         LOG.info("Collector stopped by user")
         return 0
     except Exception as exc:
         LOG.error("Collector failed: %s", exc)
         return 1
+    finally:
+        if collector is not None:
+            collector.session.close()
 
 
 if __name__ == "__main__":

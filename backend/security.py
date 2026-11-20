@@ -49,4 +49,18 @@ def install_security(app):
     def response_boundary(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
         return response
+
+    @app.errorhandler(404)
+    def handle_not_found(_exc):
+        return jsonify(error="Not found."), 404
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(_exc):
+        return jsonify(error="Method not allowed."), 405
+
+    @app.errorhandler(413)
+    def handle_payload_too_large(_exc):
+        return jsonify(error="Payload too large."), 413

@@ -184,7 +184,19 @@ export function AdminTab({
                     </span>
                   </td>
                   <td>
-                    <div className="ticket-actions-wrap"><button type="button" className="compact-action secondary" onClick={() => openEdit(u)}>{t.admin.editUser}</button><button type="button" className="compact-action secondary" disabled={saving || !u.is_active} onClick={() => void issueRecoveryCode(u)}>{t.admin.issueRecoveryCode}</button></div>
+                    <div className="ticket-actions-wrap">
+                      <button type="button" className="compact-action secondary" onClick={() => openEdit(u)}>
+                        {t.admin.editUser}
+                      </button>
+                      <button
+                        type="button"
+                        className="compact-action secondary"
+                        disabled={saving || !u.is_active}
+                        onClick={() => void issueRecoveryCode(u)}
+                      >
+                        {t.admin.issueRecoveryCode}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -194,13 +206,91 @@ export function AdminTab({
       </section>
 
       <section className="panel">
-        <div className="section-head"><div><h2>{t.admin.accountRequests}</h2><p className="section-sub">{t.admin.accountRequestsHelp}</p></div><span className="list-count">{accountRequests.length}</span></div>
-        {!accountRequestsAvailable && <div className="notice-muted" role="status">{t.admin.accountRequestsMigration}</div>}
-        {issuedRecoveryCode && <div className="notice banner" role="status"><strong>{issuedRecoveryUser}</strong>: <code>{issuedRecoveryCode}</code><p>{t.admin.recoveryCodeOneTime}</p><button type="button" className="compact-action secondary" onClick={() => { void navigator.clipboard?.writeText(issuedRecoveryCode); }}>{t.twin.copyKey}</button><button type="button" className="compact-action secondary" onClick={() => setIssuedRecoveryCode('')}>{t.close}</button></div>}
-        <div className="table-wrap"><table><thead><tr><th>{t.username}</th><th>{t.admin.fullName}</th><th>{t.admin.email}</th><th>{t.admin.role}</th><th>{t.requestNote}</th><th>{t.admin.createdAt}</th><th /></tr></thead><tbody>
-          {accountRequests.map(item => <tr key={item.id}><td><strong>{item.username}</strong></td><td>{item.full_name}</td><td>{item.email}</td><td>{t.roles[item.requested_role] ?? item.requested_role}</td><td>{item.note || '—'}</td><td>{new Date(item.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</td><td><div className="ticket-actions-wrap"><button type="button" className="compact-action" disabled={saving} onClick={async () => { setSaving(true); try { const code = await onReviewAccountRequest(item, 'APPROVE'); if (code) { setIssuedRecoveryCode(code); setIssuedRecoveryUser(item.username); } } finally { setSaving(false); } }}>{t.admin.approveAccess}</button><button type="button" className="compact-action secondary" disabled={saving} onClick={() => void onReviewAccountRequest(item, 'REJECT')}>{t.admin.rejectAccess}</button></div></td></tr>)}
-          {!accountRequests.length && <tr><td colSpan={7} className="empty">{t.admin.noAccountRequests}</td></tr>}
-        </tbody></table></div>
+        <div className="section-head">
+          <div>
+            <h2>{t.admin.accountRequests}</h2>
+            <p className="section-sub">{t.admin.accountRequestsHelp}</p>
+          </div>
+          <span className="list-count">{accountRequests.length}</span>
+        </div>
+        {!accountRequestsAvailable && (
+          <div className="notice-muted" role="status">{t.admin.accountRequestsMigration}</div>
+        )}
+        {issuedRecoveryCode && (
+          <div className="notice banner" role="status">
+            <strong>{issuedRecoveryUser}</strong>: <code>{issuedRecoveryCode}</code>
+            <p>{t.admin.recoveryCodeOneTime}</p>
+            <button
+              type="button"
+              className="compact-action secondary"
+              onClick={() => { void navigator.clipboard?.writeText(issuedRecoveryCode); }}
+            >
+              {t.twin.copyKey}
+            </button>
+            <button type="button" className="compact-action secondary" onClick={() => setIssuedRecoveryCode('')}>
+              {t.close}
+            </button>
+          </div>
+        )}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{t.username}</th>
+                <th>{t.admin.fullName}</th>
+                <th>{t.admin.email}</th>
+                <th>{t.admin.role}</th>
+                <th>{t.requestNote}</th>
+                <th>{t.admin.createdAt}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {accountRequests.map(item => (
+                <tr key={item.id}>
+                  <td><strong>{item.username}</strong></td>
+                  <td>{item.full_name}</td>
+                  <td>{item.email}</td>
+                  <td>{t.roles[item.requested_role] ?? item.requested_role}</td>
+                  <td>{item.note || '—'}</td>
+                  <td>{new Date(item.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</td>
+                  <td>
+                    <div className="ticket-actions-wrap">
+                      <button
+                        type="button"
+                        className="compact-action"
+                        disabled={saving}
+                        onClick={async () => {
+                          setSaving(true);
+                          try {
+                            const code = await onReviewAccountRequest(item, 'APPROVE');
+                            if (code) {
+                              setIssuedRecoveryCode(code);
+                              setIssuedRecoveryUser(item.username);
+                            }
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                      >
+                        {t.admin.approveAccess}
+                      </button>
+                      <button
+                        type="button"
+                        className="compact-action secondary"
+                        disabled={saving}
+                        onClick={() => void onReviewAccountRequest(item, 'REJECT')}
+                      >
+                        {t.admin.rejectAccess}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!accountRequests.length && <tr><td colSpan={7} className="empty">{t.admin.noAccountRequests}</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="panel">
