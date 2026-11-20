@@ -16,7 +16,11 @@ BEGIN
 
     SELECT u.id AS user_id,
            u.username,
+           u.email,
            u.password_hash,
+           u.security_version,
+           u.mfa_enabled,
+           u.mfa_secret_encrypted,
            u.full_name,
            u.role_id,
            r.name AS role_name

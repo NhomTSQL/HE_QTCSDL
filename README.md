@@ -26,7 +26,7 @@ Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
 - Database triển khai là SQL Server Developer; không dùng PostgreSQL/SQLite thay thế.
 - Không commit `.env`, mật khẩu hoặc khóa bí mật. Mỗi máy dùng mật khẩu SQL Server riêng.
 - Backend chỉ truy cập DB qua stored procedure. Next.js không kết nối SQL Server.
-- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; chạy `scripts/set_dev_passwords.py` trước khi đăng nhập.
+- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; đặt `AR_IMMS_DEV_PASSWORD` trong `.env` (tối thiểu 8 ký tự) để Flask tự động đồng bộ hash cho `admin`, `operator`, `technician` khi khởi động.
 
 ## Các bước chạy
 
@@ -38,11 +38,29 @@ Chờ container báo healthy. Mở SSMS hoặc Azure Data Studio, kết nối `l
 2. `database/02_create_tables.sql`
 3. `database/03_seed_data.sql`
 4. `database/04_procedures_triggers_views.sql`
-5. `database/05_indexes.sql`
+5. `database/05_retention_policy.sql`
 6. `database/08_dev_node_api_key.sql`
 7. `database/09_auth_procedures.sql`
-8. `database/16_alert_dedupe.sql`
-9. `database/17_dashboard_api_procedures.sql`
+8. `database/10_agent_job_heartbeat.sql`
+9. `database/12_backup_recovery_model.sql`
+10. `database/13_backup_jobs.sql`
+11. `database/14_backup_cleanup.sql`
+12. `database/16_alert_dedupe.sql`
+13. `database/17_dashboard_api_procedures.sql`
+14. `database/19_security_and_core_fixes.sql`
+15. `database/20_extended_features_procedures.sql`
+16. `database/22_scale_architecture.sql` (snapshot O(1), phân vùng tháng, Columnstore index, batch SP, phân trang)
+17. `database/23_least_privilege_login.sql` (user ứng dụng quyền tối thiểu `ar_imms_app`)
+18. `database/25_password_recovery.sql` (phiên đăng nhập `auth_sessions`, MFA, khôi phục mật khẩu, bàn giao ca)
+19. `database/26_security_hardening.sql` (xác thực phiên, trigger thu hồi phiên khi đổi quyền/mật khẩu, BOLA guard)
+
+Các script kiểm chứng & benchmark (không làm hỏng dữ liệu):
+- `database/06_verify_seed_data.sql`
+- `database/07_test_normalized_schema.sql`
+- `database/18_test_retention_batch.sql`
+- `database/21_performance_benchmark.sql`
+- `database/24_scale_benchmark_1m.sql` (benchmark 1.000.060 dòng rollback sạch)
+- `database/15_restore_disaster_recovery.sql` (diễn tập khôi phục sang DB `AR_IMMS_RestoreTest`)
 
 Không chạy `database/00_reset.sql` trên database đang dùng.
 
@@ -69,11 +87,13 @@ Invoke-RestMethod http://localhost:5000/health
 
 ### 3. Mật khẩu demo
 
-```powershell
-py scripts/set_dev_passwords.py
+Đặt biến `AR_IMMS_DEV_PASSWORD` (ít nhất 8 ký tự) trong file `.env` cục bộ trước khi chạy Flask:
+
+```ini
+AR_IMMS_DEV_PASSWORD=your-local-dev-password
 ```
 
-Đặt mật khẩu cho `admin`, `operator`, `technician`. Không commit `.env` hoặc mật khẩu.
+Khi `backend/app.py` khởi động (hoặc chạy test), Flask sẽ tự động kiểm tra và đồng bộ hash mật khẩu cho 3 tài khoản mẫu (`admin`, `operator`, `technician`) qua stored procedure `dbo.usp_set_user_password_hash`. Không commit `.env` hoặc mật khẩu.
 
 ### 4. Next.js dashboard
 
@@ -94,7 +114,12 @@ Invoke-RestMethod http://localhost:5000/health
 Invoke-RestMethod http://localhost:3000/api/health
 ```
 
-Luồng MVP: đăng nhập → danh sách node kèm telemetry mới nhất → cảnh báo đang mở → ack alert/tạo ticket.
+Luồng chức năng trên Web (`http://localhost:3000`, hỗ trợ chuyển đổi **EN / VI**, lưu phiên `sessionStorage`, SSE debounce & lazy polling theo tab):
+- **Overview & Digital Twin**: Cây hạ tầng 5 cấp (`Site → Room → Rack → Node → Container`), đăng ký node mới (cấp API key), cấu hình ngưỡng cảnh báo, xác nhận cảnh báo, phân trang server (`?limit=&offset=`) và phân công/xử lý/duyệt đóng ticket cho Operator và Field Technician. Collector hỗ trợ gửi batch (`POST /telemetry/batch`, `USE_BATCH=1`).
+- **Mobile Web AR/QR Scanner**: Quét camera/QR hoặc chọn marker testbed để phủ lớp HUD thông số trực tiếp, khởi động lại container có audit log và thao tác ticket tại hiện trường.
+- **Assets & Maintenance**: Thông số phần cứng, NIC, theo dõi hạn bảo hành và lịch sử bảo trì.
+- **Analytics & PUE**: Báo cáo PUE, năng lượng tiêu thụ, quy hoạch dung lượng theo Rack, tổng hợp 4 cấp kèm xuất **CSV UTF-8 BOM** và biểu đồ xu hướng telemetry.
+- **Admin & Audit**: Quản lý tài khoản RBAC, collector agents, phân trang và xuất **CSV UTF-8 BOM** nhật ký kiểm toán bất biến (`audit_logs`).
 
 ## Quy ước làm việc nhóm
 

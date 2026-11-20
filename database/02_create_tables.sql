@@ -63,6 +63,10 @@ CREATE TABLE users (
     full_name       NVARCHAR(100)       NOT NULL,
     role_id         INT                 NOT NULL,
     is_active       BIT                 NOT NULL DEFAULT 1,
+    security_version INT                NOT NULL DEFAULT 1,
+    mfa_secret_encrypted VARBINARY(512) NULL,
+    mfa_setup_secret_encrypted VARBINARY(512) NULL,
+    mfa_enabled     BIT                 NOT NULL DEFAULT 0,
     created_at      DATETIME2           NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at      DATETIME2           NOT NULL DEFAULT SYSUTCDATETIME(),
 
