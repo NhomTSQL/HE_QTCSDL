@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test tests/security.test.cjs"
+    "test": "node --test tests/security.test.cjs tests/api-and-components.test.cjs"
   },
   "dependencies": {
     "lucide-react": "1.61.0",
