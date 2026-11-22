@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SparkChart } from '@/components/SparkChart';
 import { downloadCsv } from '@/lib/csv';
+import { apiUrl } from '@/lib/api';
 import { getCopy } from '@/lib/i18n';
 import type {
   AnalyticsSummary,
@@ -48,7 +49,7 @@ export function AnalyticsTab({ token, lang, summary, rackCapacity, nodes }: Prop
   useEffect(() => {
     if (!token || !selectedNodeId) return;
     let active = true;
-    fetch(`/api/telemetry/history?node_id=${selectedNodeId}&metric_type=${encodeURIComponent(metricCode)}&limit=${limit}`, {
+    fetch(apiUrl(`/api/telemetry/history?node_id=${selectedNodeId}&metric_type=${encodeURIComponent(metricCode)}&limit=${limit}`), {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     })
@@ -61,7 +62,7 @@ export function AnalyticsTab({ token, lang, summary, rackCapacity, nodes }: Prop
   useEffect(() => {
     if (!token) return;
     let active = true;
-    fetch(`/api/reports/hierarchy?group_by=${groupBy}&hours=${hours}`, {
+    fetch(apiUrl(`/api/reports/hierarchy?group_by=${groupBy}&hours=${hours}`), {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     })

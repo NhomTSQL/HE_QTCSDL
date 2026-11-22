@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { apiUrl } from '@/lib/api';
 import { getCopy } from '@/lib/i18n';
 import type { Lang, MarkerLookupResult } from '@/lib/types';
 
@@ -67,7 +68,7 @@ export function ArScannerTab({
     setLoading(true);
     setScanError('');
     try {
-      const res = await fetch(`/api/markers/lookup?code=${encodeURIComponent(clean)}`, {
+      const res = await fetch(apiUrl(`/api/markers/lookup?code=${encodeURIComponent(clean)}`), {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });

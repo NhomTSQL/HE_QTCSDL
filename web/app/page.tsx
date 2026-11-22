@@ -6,6 +6,8 @@ import { AdminTab } from '@/components/AdminTab';
 import { AnalyticsTab } from '@/components/AnalyticsTab';
 import { ArScannerTab } from '@/components/ArScannerTab';
 import { AssetsTab } from '@/components/AssetsTab';
+import { HandoverTab, type HandoverNoteRow } from '@/components/HandoverTab';
+import { apiUrl } from '@/lib/api';
 import { SparkChart } from '@/components/SparkChart';
 import { getCopy } from '@/lib/i18n';
 import type {
@@ -162,8 +164,7 @@ export default function Dashboard() {
   const [usersList, setUsersList] = useState<UserRow[]>([]);
   const [accountRequests, setAccountRequests] = useState<AccountAccessRequest[]>([]);
   const [accountRequestsAvailable, setAccountRequestsAvailable] = useState(true);
-  const [handoverNotes, setHandoverNotes] = useState<{ id: number; username: string; note: string; created_at: string }[]>([]);
-  const [handoverDraft, setHandoverDraft] = useState('');
+  const [handoverNotes, setHandoverNotes] = useState<HandoverNoteRow[]>([]);
   const [handoverAvailable, setHandoverAvailable] = useState(true);
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [auditFilter, setAuditFilter] = useState('');
@@ -311,7 +312,7 @@ export default function Dashboard() {
   const refresh = useCallback(async (jwt: string, currentUser: SessionUser | null, opts: RefreshOpts) => {
     const headers = { Authorization: `Bearer ${jwt}` };
     const fetchJson = async (url: string) => {
-      const res = await fetch(url, { headers, cache: 'no-store' });
+      const res = await fetch(apiUrl(url), { headers, cache: 'no-store' });
       if (res.status === 401) throw new Error('UNAUTHORIZED');
       if (!res.ok) {
         const detail = await res.clone().json().catch(() => ({}));
@@ -464,7 +465,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token || inspectedNodeId == null) return;
     let active = true;
-    fetch(`/api/telemetry/history?node_id=${inspectedNodeId}&metric_type=${encodeURIComponent(inspectMetric)}&limit=30`, {
+    fetch(apiUrl(`/api/telemetry/history?node_id=${inspectedNodeId}&metric_type=${encodeURIComponent(inspectMetric)}&limit=30`), {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     })
@@ -479,7 +480,7 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, ...(otp ? { otp } : {}) }),
@@ -510,7 +511,7 @@ export default function Dashboard() {
   async function resetPassword(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError('');
     try {
-      const response = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: recoveryCode.trim(), password: newPassword }) });
+      const response = await fetch(apiUrl('/api/auth/reset-password'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: recoveryCode.trim(), password: newPassword }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t.passwordResetFailed);
       setNotice(t.passwordResetDone); setAuthView('login'); setRecoveryCode(''); setNewPassword('');
@@ -521,7 +522,7 @@ export default function Dashboard() {
   async function requestAccess(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError('');
     try {
-      const response = await fetch('/api/auth/request-access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestForm) });
+      const response = await fetch(apiUrl('/api/auth/request-access'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestForm) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t.accountRequestFailed);
       setNotice(t.accountRequestDone); setAuthView('login'); setRequestForm({ username: '', email: '', full_name: '', requested_role: 'FIELD_TECHNICIAN', note: '' });
@@ -532,7 +533,7 @@ export default function Dashboard() {
   async function changePassword(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setNotice('');
     try {
-      const response = await fetch('/api/auth/change-password', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) });
+      const response = await fetch(apiUrl('/api/auth/change-password'), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t.passwordChangeFailed);
       setNotice(t.passwordChangeDone); setAccountOpen(false); setCurrentPassword(''); setNewPassword('');
@@ -541,20 +542,20 @@ export default function Dashboard() {
   }
 
   async function revokeOtherSessions() {
-    const response = await fetch('/api/auth/sessions/revoke-others', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(apiUrl('/api/auth/sessions/revoke-others'), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) { setError(t.sessionActionFailed); return; }
     setNotice(t.sessionsRevoked);
   }
 
   async function beginMfaSetup() {
-    const response = await fetch('/api/auth/mfa/setup', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(apiUrl('/api/auth/mfa/setup'), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { setError(data.error || t.mfaSetupFailed); return; }
     setMfaSecret(data.secret || ''); setMfaCode('');
   }
 
   async function enableMfa() {
-    const response = await fetch('/api/auth/mfa/enable', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: mfaCode }) });
+    const response = await fetch(apiUrl('/api/auth/mfa/enable'), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: mfaCode }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { setError(data.error || t.mfaSetupFailed); return; }
     setMfaBackupCodes(data.backup_codes || []); setMfaSecret(''); setMfaCode(''); setNotice(t.mfaEnabled);
@@ -565,7 +566,7 @@ export default function Dashboard() {
     setError('');
     setNotice('');
     try {
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(url), {
         method,
         headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}),
@@ -755,7 +756,7 @@ export default function Dashboard() {
       return;
     }
     setOpenNotesTicketId(ticketId);
-    const res = await fetch(`/api/tickets/${ticketId}/notes`, {
+    const res = await fetch(apiUrl(`/api/tickets/${ticketId}/notes`), {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
@@ -764,7 +765,7 @@ export default function Dashboard() {
 
   async function addTicketNote(ticketId: number, noteText: string) {
     await submitAction(`note-${ticketId}`, `/api/tickets/${ticketId}/notes`, 'POST', { note_text: noteText });
-    const res = await fetch(`/api/tickets/${ticketId}/notes`, {
+    const res = await fetch(apiUrl(`/api/tickets/${ticketId}/notes`), {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
@@ -785,16 +786,6 @@ export default function Dashboard() {
   async function startWork(ticketId: number) {
     await submitAction(`ticket-${ticketId}`, `/api/tickets/${ticketId}/status`, 'PATCH', { status: 'IN_PROGRESS' });
     setNotice(`Ticket #${ticketId} → IN_PROGRESS.`);
-  }
-
-  async function addHandover(event: FormEvent) {
-    event.preventDefault();
-    const response = await fetch('/api/handover', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ note: handoverDraft }) });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) { setError(data.error || t.handover.failed); return; }
-    setHandoverDraft(''); setNotice(t.handover.saved);
-    const refreshed = await fetch('/api/handover', { headers: { Authorization: `Bearer ${token}` } });
-    if (refreshed.ok) setHandoverNotes(await refreshed.json());
   }
 
   async function submitClosure(ticketId: number, summaryText: string, detailsText: string, mtype: string) {
@@ -829,7 +820,7 @@ export default function Dashboard() {
   }
 
   async function logout() {
-    try { await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); } catch { /* Clear local credentials when offline too. */ }
+    try { await fetch(apiUrl('/api/auth/logout'), { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); } catch { /* Clear local credentials when offline too. */ }
     try { window.sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* ignore */ }
     setToken('');
     setUser(null);
@@ -1883,47 +1874,17 @@ export default function Dashboard() {
       )}
 
       {tab === 'handover' && showData && (
-        <section className="panel">
-          <div className="section-head">
-            <div>
-              <h2>{t.handover.title}</h2>
-              <p className="section-sub">{t.handover.subtitle}</p>
-            </div>
-            <span className="list-count">
-              {openTickets.length} {t.myWork.tickets.toLowerCase()} · {alerts.length} {t.myWork.alerts.toLowerCase()}
-            </span>
-          </div>
-          {!handoverAvailable && (
-            <div className="notice-muted" role="status">{t.handover.migration}</div>
-          )}
-          <div className="handover-snapshot">
-            <h3>{t.handover.activeWork}</h3>
-            {openTickets.slice(0, 12).map(item => (
-              <p key={item.id}>#{item.id} · {item.node_name} · {item.title} · {item.status.replaceAll('_', ' ')}</p>
-            ))}
-            {!openTickets.length && <p>{t.handover.noActiveWork}</p>}
-          </div>
-          {handoverAvailable && (
-            <form className="ticket-form handover-form" onSubmit={e => void addHandover(e)}>
-              <label>
-                {t.handover.note}
-                <textarea rows={4} maxLength={1000} value={handoverDraft} onChange={e => setHandoverDraft(e.target.value)} required />
-              </label>
-              <div className="ticket-form-footer">
-                <button disabled={!handoverDraft.trim()}>{t.handover.save}</button>
-              </div>
-            </form>
-          )}
-          <div className="handover-notes">
-            {handoverNotes.map(note => (
-              <article key={note.id}>
-                <p>{note.note}</p>
-                <span>{note.username} · {new Date(note.created_at).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</span>
-              </article>
-            ))}
-            {handoverAvailable && !handoverNotes.length && <p className="empty">{t.handover.noNotes}</p>}
-          </div>
-        </section>
+        <HandoverTab
+          token={token}
+          lang={lang}
+          openTickets={openTickets}
+          alertsCount={alerts.length}
+          handoverAvailable={handoverAvailable}
+          handoverNotes={handoverNotes}
+          onNotesChange={setHandoverNotes}
+          onNotice={setNotice}
+          onError={setError}
+        />
       )}
 
       {tab === 'ar' && (
@@ -1980,14 +1941,14 @@ export default function Dashboard() {
             setNotice('User account saved.');
           }}
           onReviewAccountRequest={async (item, decision) => {
-            const response = await fetch(`/api/account-requests/${item.id}/review`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, role_name: item.requested_role }) });
+            const response = await fetch(apiUrl(`/api/account-requests/${item.id}/review`), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, role_name: item.requested_role }) });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || t.admin.accountReviewFailed);
             await refresh(token, user, refreshOptsRef.current);
             return data.recovery_code ?? null;
           }}
           onIssueRecoveryCode={async userId => {
-            const response = await fetch(`/api/auth/users/${userId}/recovery-code`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+            const response = await fetch(apiUrl(`/api/auth/users/${userId}/recovery-code`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.error || t.admin.recoveryCodeFailed);
             return data.code ?? null;
