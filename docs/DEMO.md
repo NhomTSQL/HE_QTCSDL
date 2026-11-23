@@ -5,7 +5,7 @@ Mục tiêu: chứng minh luồng `collector → Flask API → SQL Server`.
 ## Chuẩn bị
 
 - SQL Server Docker đang ở trạng thái `healthy`.
-- Đã chạy schema, seed và `database/08_dev_node_api_key.sql`.
+- Đã chạy schema, seed và `database/migrations/08_dev_node_api_key.sql`.
 - Đã cài dependency trong `backend/requirements.txt`.
 - Có `.env` cục bộ với `DATABASE_URL`.
 
@@ -57,16 +57,16 @@ Kết quả mong đợi là HTTP `201` với `status=recorded`.
 ## Bước 4: Chạy test tự động
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s backend -p "test_*.py" -v
+.\.venv\Scripts\python.exe -m unittest discover -s backend/tests -t . -p "test_*.py" -v
 .\.venv\Scripts\python.exe -m unittest discover -s collector/tests -v
 Set-Location web; npm test; npx tsc --noEmit
 ```
 
-Backend đạt **52/52 PASS** (nhờ `AR_IMMS_DEV_PASSWORD` trong `.env` tự đồng bộ cho 3 tài khoản mẫu), collector **6/6 PASS**, frontend security/CSV **6/6 PASS**.
+Kết quả test phụ thuộc môi trường và phiên bản code. Không dùng số PASS lịch sử như kết quả hiện tại; chạy lại các lệnh trên và ghi kết quả cùng ngày/môi trường trong [STATUS.md](STATUS.md). Một số backend integration tests cần SQL Server và schema đã cài.
 
 ## Bước 5: Demo Full-Stack trên Web Dashboard (`http://localhost:3000`)
 
-1. Khởi động backend (`py backend/app.py`), collector (`py collector/agent.py`) và frontend (`cd web && npm run dev`).
+1. Khởi động backend (`py backend/app.py`), collector (`py collector/agent.py`) và frontend (`cd web; npm run dev`).
 2. Đăng nhập lần lượt bằng `admin`, `operator`, `technician` (mật khẩu là giá trị `AR_IMMS_DEV_PASSWORD` trong `.env`), trình diễn chuyển đổi ngôn ngữ **EN / VI** và danh mục phân hệ trên cả desktop lẫn mobile drawer.
 3. **Tổng quan & Digital Twin**: Duyệt cây 5 cấp (`Site → Room → Rack → Node → Container`), xem cập nhật real-time qua SSE, cấu hình ngưỡng cảnh báo, xác nhận cảnh báo và tạo ticket.
 4. **Việc của tôi & Bàn giao ca**: Đăng nhập `technician` để nhận việc, thêm ghi chú bàn giao ca (`shift_handover_notes`), gửi yêu cầu đóng ticket (`PENDING_CLOSURE`), sau đó dùng `operator`/`admin` duyệt đóng (`CLOSED`) và kiểm tra ghi nhận lịch sử bảo trì.
@@ -129,3 +129,4 @@ ORDER BY h.instance_id DESC;
 
 - Nếu collector không chạy, gửi request bằng PowerShell như bước 2.
 - Nếu SQL Server chưa healthy, kiểm tra `docker compose ps` và log container.
+

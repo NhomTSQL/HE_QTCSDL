@@ -34,13 +34,10 @@ di chuyển object trong một thay đổi không liên quan.
 
 ## Script database
 
-- Chuẩn dự kiến cho script mới: thư mục `/db`, đánh số tăng dần
-  `001_<purpose>.sql`, `002_<purpose>.sql`, ...; thiết lập mới chạy theo thứ tự.
-- Repo hiện tại vẫn dùng `database/01_...sql` đến `database/07_...sql`.
-  Không di chuyển hoặc đổi số loạt script hiện hữu trong thay đổi tài liệu này.
-  Trước khi tạo script mới, nhóm cần quyết định qua Jira có chuyển toàn bộ sang
-  `/db/001_...` hay tiếp tục loạt `database/08_...`; tránh duy trì hai chuỗi
-  migration song song.
+- Repo giữ nguyên số thứ tự các script, hiện được phân nhóm trong
+  `database/migrations/`, `database/tests/`, `database/benchmarks/` và
+  `database/operations/`. Migration mới tiếp tục chuỗi số hiện tại và được thêm
+  vào đúng nhóm; không tạo chuỗi migration song song hoặc đổi số file cũ.
 - Script thiết lập/schema/object nên chạy lại an toàn khi có thể; dùng
   `CREATE OR ALTER` cho procedure, function, view và trigger khi SQL Server
   mục tiêu hỗ trợ. Không xóa dữ liệu hợp lệ để đạt tính idempotent.
@@ -49,16 +46,15 @@ di chuyển object trong một thay đổi không liên quan.
 - Seed phải xác định, có thể chạy lại và không chứa mật khẩu thật. Hash mẫu
   hiện tại là placeholder, không dùng cho môi trường thực.
 - Chạy verifier/test sau khi áp dụng script. Hướng dẫn hiện có ở
-  [MIGRATION_GUIDE_SQLSERVER.md](../database/MIGRATION_GUIDE_SQLSERVER.md).
+  [MIGRATION_GUIDE_SQLSERVER.md](../database/MIGRATION_GUIDE_SQLSERVER.md) và [database/README.md](../database/README.md).
 
 ## Backend và hợp đồng API
 
-- Backend Flask truy cập DB qua `pyodbc` và stored procedure; không đặt SQL
-  nghiệp vụ, ORM hoặc truy vấn ad hoc trong route/service.
-- API health/connectivity không được trở thành ngoại lệ âm thầm cho truy vấn
-  nghiệp vụ. Hiện `backend/app.py` có `SELECT 1` để kiểm tra kết nối; cần phân
-  biệt rõ đây là probe kỹ thuật và xử lý theo yêu cầu stored-procedure-only của
-  dự án khi hoàn thiện backend.
+- Backend Flask dùng SQLAlchemy/pyodbc cho quản lý connection pool và thực thi
+  stored procedure; không đặt SQL nghiệp vụ, ORM query hoặc truy vấn ad hoc trong
+  route/service.
+- Health/connectivity probe hiện gọi `dbo.usp_health_check`; không thêm truy vấn
+  ad hoc trực tiếp để kiểm tra kết nối.
 - Giữ nguyên REST API contract của source tham chiếu trong phạm vi đã chọn.
   Thay đổi request/response/status code cần được nhóm chấp thuận và cập nhật
   test/tài liệu API.
@@ -76,16 +72,18 @@ di chuyển object trong một thay đổi không liên quan.
   retry có giới hạn và không làm mất dữ liệu âm thầm khi có buffer.
 - Timestamps giữa collector, API và DB thống nhất UTC; nêu đơn vị của metric
   rõ ràng.
-- Socket.IO chỉ phát dữ liệu lấy từ luồng backend đã xác thực/kiểm soát quyền;
-  không cho client ghi thẳng vào DB.
+- SSE chỉ phát tín hiệu cập nhật do backend phát sau thao tác đã xác thực; không
+  cho client ghi thẳng vào DB.
 - QR chỉ dùng để mở luồng tra cứu web đã nằm trong scope; không diễn giải QR
   thành triển khai AR/ArUco.
 
-## Tên và trạng thái hiện tại
+## Hiện trạng và quy tắc áp dụng
 
-Schema đang có trong repo dùng tên chữ thường dạng `snake_case` và một số
-procedure/function tiền tố cũ như `sp_`/`fn_`; các script hiện nằm trong
-`database/` với số `01`–`07`. Đây là hiện trạng cần được đối chiếu với chuẩn mục
-tiêu PascalCase, tiền tố `usp_`/`ufn_` và loạt `/db/001_...` trong các issue
-Jira trước khi chuyển đổi. Khi chuyển, phải làm trong thay đổi có kiểm thử và
-cập nhật ERD/từ điển dữ liệu, backend và hướng dẫn chạy.
+Schema hiện hữu dùng tên chữ thường dạng `snake_case`; một số object hiện hữu
+không theo đầy đủ quy ước tiền tố mục tiêu. Script đang được đánh số trong
+`database/` theo chuỗi `00`–`26` và được chia giữa triển khai, kiểm thử,
+benchmark, backup và restore. Đây là hiện trạng cần được giữ ổn định; quy ước
+đặt tên ở trên áp dụng cho object mới. Không đổi tên object hoặc di chuyển
+migration hiện hữu chỉ để đồng nhất hình thức. Thay đổi lớn cần migration,
+kiểm thử và cập nhật ERD/từ điển dữ liệu, backend cùng hướng dẫn chạy.
+

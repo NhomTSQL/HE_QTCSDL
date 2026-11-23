@@ -1,47 +1,45 @@
-# Chạy bộ script SQL Server
+# Chạy migration SQL Server
 
-Hướng dẫn cài đặt Docker, ODBC Driver 18, cấu hình `.env` và kiểm tra backend
-trên nhiều máy được chuẩn hóa tại [docs/SETUP-WINDOWS.md](../docs/SETUP-WINDOWS.md).
+Hướng dẫn cài đặt Docker, ODBC Driver 18, cấu hình `.env` và kiểm tra backend nằm tại [docs/SETUP-WINDOWS.md](../docs/SETUP-WINDOWS.md). Phân loại đầy đủ script xem [README.md](README.md).
 
-Sau khi SQL Server khởi động, kết nối bằng SQL Server Management Studio (SSMS)
-đến `localhost,1433` với SQL Authentication (`sa`) rồi chạy theo thứ tự:
+Sau khi SQL Server khởi động, kết nối SSMS tới `localhost,1433` bằng SQL Authentication (`sa`) rồi chạy đúng thứ tự sau. Đây là **chỉ danh sách triển khai**, không bao gồm test, benchmark, reset hoặc restore drill:
 
-1. `database/01_create_database.sql`
-2. `database/02_create_tables.sql`
-3. `database/03_seed_data.sql`
-4. `database/04_procedures_triggers_views.sql`
-5. `database/05_retention_policy.sql`
+1. `database/migrations/01_create_database.sql`
+2. `database/migrations/02_create_tables.sql`
+3. `database/migrations/03_seed_data.sql`
+4. `database/migrations/04_procedures_triggers_views.sql`
+5. `database/migrations/05_retention_policy.sql`
+6. `database/migrations/08_dev_node_api_key.sql`
+7. `database/migrations/09_auth_procedures.sql`
+8. `database/migrations/10_agent_job_heartbeat.sql`
+9. `database/migrations/12_backup_recovery_model.sql`
+10. `database/migrations/13_backup_jobs.sql`
+11. `database/migrations/14_backup_cleanup.sql`
+12. `database/migrations/16_alert_dedupe.sql`
+13. `database/migrations/17_dashboard_api_procedures.sql`
+14. `database/migrations/19_security_and_core_fixes.sql`
+15. `database/migrations/20_extended_features_procedures.sql`
+16. `database/migrations/22_scale_architecture.sql`
+17. `database/migrations/23_least_privilege_login.sql`
+18. `database/migrations/25_password_recovery.sql`
+19. `database/migrations/26_security_hardening.sql`
 
-Sau bước 1–5, chạy tiếp các script nghiệp vụ, bảo mật, backup và mở rộng theo thứ tự:
+`02_create_tables.sql` tạo schema chuẩn hóa và nâng cấp dữ liệu trong transaction. JSON không hợp lệ, thuộc tính không nhận diện hoặc unit telemetry không nhất quán phải làm script fail/rollback.
 
-6. `database/08_dev_node_api_key.sql`
-7. `database/09_auth_procedures.sql`
-8. `database/10_agent_job_heartbeat.sql`
-9. `database/12_backup_recovery_model.sql`
-10. `database/13_backup_jobs.sql`
-11. `database/14_backup_cleanup.sql`
-12. `database/16_alert_dedupe.sql`
-13. `database/17_dashboard_api_procedures.sql`
-14. `database/19_security_and_core_fixes.sql`
-15. `database/20_extended_features_procedures.sql`
-16. `database/22_scale_architecture.sql`
-17. `database/23_least_privilege_login.sql`
-18. `database/25_password_recovery.sql`
-19. `database/26_security_hardening.sql` (bắt buộc cho `usp_validate_auth_session` và kiểm tra phiên đăng nhập)
+## Kiểm chứng sau migration
 
-`database/02_create_tables.sql` tạo schema chuẩn hóa và nâng cấp các cột JSON/
-chuỗi của schema cũ. Việc nâng cấp chạy trong transaction; JSON không hợp lệ,
-thuộc tính không nhận diện hoặc đơn vị telemetry không nhất quán sẽ làm script
-thất bại và rollback thay vì xóa dữ liệu không thể ánh xạ.
+- `database/tests/06_verify_seed_data.sql`
+- `database/tests/07_test_normalized_schema.sql`
+- `database/tests/11_test_heartbeat_job.sql`
+- `database/tests/18_test_retention_batch.sql`
 
-Để xác nhận các script an toàn khi chạy lại, chạy lại bước 1–5 lần thứ hai,
-sau đó chạy `database/06_verify_seed_data.sql` và
-`database/07_test_normalized_schema.sql`. Kết quả mong đợi là thông báo `PASS`
-cho dữ liệu/schema, một kiểm thử nghiệp vụ hợp lệ và hai kiểm thử âm; mọi lỗi
-SQL làm script kết thúc không thành công.
+## Script không thuộc migration
 
-ERD, từ điển dữ liệu và phân tích 3NF: [docs/ERD-DATA-DICTIONARY.md](../docs/ERD-DATA-DICTIONARY.md).
+- Benchmark: `database/benchmarks/21_performance_benchmark.sql`, `database/benchmarks/24_scale_benchmark_1m.sql`.
+- Vận hành: `database/operations/15_restore_disaster_recovery.sql`.
+- Reset dev phá hủy dữ liệu: `database/operations/00_reset.sql`; không chạy trên database đang dùng.
 
-Các hash mật khẩu trong seed data chỉ là placeholder. Đặt biến `AR_IMMS_DEV_PASSWORD`
-trong file `.env` cục bộ để Flask tự động đồng bộ hash cho `admin`, `operator`,
-`technician` khi khởi động trước khi dùng chức năng đăng nhập.
+Sau khi chạy migration và đặt `AR_IMMS_DEV_PASSWORD` trong `.env`, Flask sẽ đồng bộ mật khẩu placeholder của tài khoản demo qua stored procedure.
+
+ERD và từ điển dữ liệu: [docs/ERD-DATA-DICTIONARY.md](../docs/ERD-DATA-DICTIONARY.md).
+

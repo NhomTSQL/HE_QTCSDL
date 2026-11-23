@@ -27,7 +27,7 @@ Sửa `collector/.env` cho đúng môi trường. File này đã được `.giti
 | `QUEUE_MAX_ITEMS` | Số mẫu tối đa khi offline | `1000` |
 
 `API_KEY` phải khớp hash SHA-256 trong `data_collector_agents` (xem
-`database/08_dev_node_api_key.sql`). Key sai bị Flask trả `401`.
+`database/migrations/08_dev_node_api_key.sql`). Key sai bị Flask trả `401`.
 
 ## Chạy
 
@@ -58,3 +58,4 @@ vượt ngưỡng.
 ```
 
 Test dùng HTTP server nội bộ, không gọi SQL Server thật.
+

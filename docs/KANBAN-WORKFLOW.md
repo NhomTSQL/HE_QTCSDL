@@ -107,3 +107,4 @@ backlog.
 CSV cũng có bốn task chuẩn bị vấn đáp (A–D), trong khi quy mô nhóm là năm
 người. Bổ sung phân công cho thành viên thứ năm trong Jira thay vì suy luận từ
 nhãn role.
+

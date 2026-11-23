@@ -87,8 +87,8 @@ on the live SQL Server.
 Back up the database and use a privileged migration identity in the intended
 environment. Apply, in order:
 
-1. database/25_password_recovery.sql
-2. database/26_security_hardening.sql
+1. database/migrations/25_password_recovery.sql
+2. database/migrations/26_security_hardening.sql
 3. Restart Flask with the updated dependencies/configuration and sign in again.
 
 Migration 26 includes the updated authentication procedure and session-role query.
@@ -98,14 +98,14 @@ The script contains no reset, DROP TABLE or credential seeding.
 
 Run source regression checks from the repository root:
 
-    .venv/Scripts/python.exe -m unittest discover -s backend -p test_security_regressions.py -v
+    .venv/Scripts/python.exe -m unittest discover -s backend/tests -t . -p test_security_regressions.py -v
 
 From web:
 
     node --test tests/security.test.cjs
     npm.cmd run build
 
-Observed: 22 isolated security regression methods in `test_security_regressions.py` passed against mocked SQL; additionally, migrations `database/25_password_recovery.sql` and `database/26_security_hardening.sql` have been applied and verified on the local SQL Server instance with all 53 backend integration/regression tests passing, plus JSON 404/405/413 handlers and response security headers (`X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) configured in Flask and Next.js (`web/next.config.mjs`). 6 proxy/CSV security tests passed.
+Observed: 22 isolated security regression methods in `test_security_regressions.py` passed against mocked SQL; additionally, migrations `database/migrations/25_password_recovery.sql` and `database/migrations/26_security_hardening.sql` have been applied and verified on the local SQL Server instance with all 53 backend integration/regression tests passing, plus JSON 404/405/413 handlers and response security headers (`X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) configured in Flask and Next.js (`web/next.config.mjs`). 6 proxy/CSV security tests passed.
 
 ## Reference criteria
 
@@ -113,3 +113,4 @@ Observed: 22 isolated security regression methods in `test_security_regressions.
   https://api-security.owasp.org/editions/2023/en/0xa1-broken-object-level-authorization/
 - OWASP SSRF Prevention Cheat Sheet (disable redirect following):
   https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+
