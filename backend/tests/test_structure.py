@@ -22,10 +22,10 @@ class RepositoryStructureTests(unittest.TestCase):
 
     def test_sql_scripts_are_grouped_without_renaming(self):
         expected = {
-            "database/migrations/01_create_database.sql",
-            "database/tests/06_verify_seed_data.sql",
-            "database/benchmarks/21_performance_benchmark.sql",
-            "database/operations/00_reset.sql",
+            "database/canonical/01_create_database.sql",
+            "database/verification/tests/06_verify_seed_data.sql",
+            "database/verification/benchmarks/21_performance_benchmark.sql",
+            "database/verification/operations/00_reset.sql",
         }
         self.assertTrue(all((ROOT / path).is_file() for path in expected))
 
