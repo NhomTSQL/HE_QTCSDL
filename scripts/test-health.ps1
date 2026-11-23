@@ -16,3 +16,4 @@ catch {
     Write-Error "FAIL: $Url did not return a healthy database response. $($_.Exception.Message)"
     exit 1
 }
+

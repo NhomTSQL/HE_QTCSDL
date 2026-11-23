@@ -10,7 +10,7 @@ Mục tiêu: báo cáo tốc độ ghi khi gửi vài chục dòng/giây, không
 | SQL Server | Enterprise Developer 64-bit, instance `SQLDEV` trên Windows |
 | Backend | Flask (`flask --app app run --port 5000`), **debug tắt**, server phát triển 1 tiến trình |
 | Python | 3.9, thư viện `requests` cho client |
-| Dữ liệu | Agent demo `demo-node-key-001` (`database/08_dev_node_api_key.sql`) |
+| Dữ liệu | Agent demo `demo-node-key-001` (`database/migrations/08_dev_node_api_key.sql`) |
 | Cấu hình client | 20 luồng song song, giữ nhịp theo từng mức tải |
 
 Mỗi request ghi 1 chỉ số vào `telemetry_metrics` qua `usp_record_telemetry`.
@@ -26,7 +26,7 @@ nên không đổi trạng thái node và không sinh alert.
    SELECT COUNT(*) AS so_dong_truoc, MAX(id) AS id_lon_nhat_truoc FROM telemetry_metrics;
    SELECT COUNT(*) AS so_alert_truoc FROM alerts;
    ```
-4. Cửa sổ 2 (client): `$env:LOAD_TEST_URL = 'http://127.0.0.1:5000/telemetry'` rồi `python backend\load_test_ingest.py`.
+4. Cửa sổ 2 (client): `$env:LOAD_TEST_URL = 'http://127.0.0.1:5000/telemetry'` rồi `python backend\tools\load_test_ingest.py`.
 5. Đối chiếu sau khi chạy:
    ```sql
    SELECT COUNT(*) AS so_dong_sau FROM telemetry_metrics;
@@ -66,3 +66,4 @@ Tổng 2300 request, 2300 thành công (HTTP 201), 0 lỗi.
   Chỉ đổi địa chỉ thành `127.0.0.1` thì độ trễ giảm còn vài chục ms. Nghi do `localhost` được thử bằng IPv6 trước
   rồi mới sang IPv4 (cơ chế này chưa kiểm chứng trực tiếp). Vì vậy **khi đo luôn dùng `127.0.0.1`**.
 - Số liệu là của máy 4 GB RAM, backend chạy bằng server phát triển của Flask; máy hoặc server khác sẽ cho số khác.
+

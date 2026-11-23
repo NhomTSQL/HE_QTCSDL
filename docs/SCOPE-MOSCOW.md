@@ -38,28 +38,30 @@ phục vụ việc trình diễn luồng nghiệp vụ qua CSDL.
 | Hiệu năng | Dữ liệu telemetry đủ lớn để đo; đánh giá truy vấn, execution plan, IO/thời gian; áp dụng và so sánh giải pháp index/partition/retention |
 | Bảo mật & Audit | Đăng nhập JWT và phân quyền; SQL Login/User/Role và quyền tối thiểu; truyền ngữ cảnh người dùng nếu bật; audit thay đổi quan trọng |
 | Backup/Restore | Kế hoạch Full/Differential/Log phù hợp môi trường, tự động hóa khả thi và kiểm chứng restore; giữ checklist/bằng chứng |
-| Web & QR (Must) | Dashboard và cây Rack/Node; màn hình alert/ticket; đăng nhập và hiển thị chức năng theo role; cập nhật dữ liệu live nếu luồng Socket.IO hoàn tất |
+| Web & QR (Must) | Dashboard và cây Rack/Node; màn hình alert/ticket; đăng nhập và hiển thị chức năng theo role; cập nhật dữ liệu live qua SSE/polling |
 | Báo cáo & Demo | Kiểm thử tích hợp đầu-cuối; báo cáo có bằng chứng về DB, hiệu năng, bảo mật, backup, kiến trúc/API và giao diện; kịch bản demo, phương án dự phòng và chuẩn bị vấn đáp |
 
 Danh sách chi tiết, thứ tự và người phụ trách nằm trong backlog Jira. Không xem
 các mục trong bảng là đã triển khai chỉ vì chúng được đánh dấu Must.
 
-### Should — đã triển khai bổ sung theo Đề cương
+### Should — tính năng bổ sung trong phạm vi
+
+Các mục dưới đây được mô tả là có trong source hiện tại; trạng thái nghiệm thu/bằng chứng theo từng hạng mục xem `docs/STATUS.md` và backlog Jira.
 
 - Trang Mobile Web AR/QR Scanner (`ArScannerTab`) với camera/BarcodeDetector, HUD overlay thông số thời gian thực, container restart có audit và thao tác ticket tại hiện trường (`usp_lookup_node_by_marker`, `usp_manage_marker`).
 - Báo cáo xu hướng telemetry theo Rack/Node (`usp_get_telemetry_history`) và phân tích năng lượng PUE / quy hoạch dung lượng (`usp_get_analytics_summary`, `usp_get_capacity_report`).
 - View/SP dựng cây hạ tầng 5 cấp (`Site → Room → Rack → Node → Container`).
 - Quản lý cấu hình phần cứng, NIC, lịch sử bảo trì và cảnh báo bảo hành sắp/đã hết hạn (`usp_list_assets`, `usp_upsert_asset_warranty`, `usp_list_maintenance_histories`).
 
-### Could — đã hoàn thiện 100% kèm Design to Scale
+### Could — mở rộng/Design to Scale
 
-- **Nonclustered Columnstore Index `NCCI_telemetry_analytics`** (`database/22_scale_architecture.sql`) kết hợp Covering Index `IX_telemetry_node_metric_time_inc` tối ưu truy vấn phân tích/báo cáo quy mô lớn (giảm CPU/IO qua Columnstore Segment Reads).
+- **Nonclustered Columnstore Index `NCCI_telemetry_analytics`** (`database/migrations/22_scale_architecture.sql`) kết hợp Covering Index `IX_telemetry_node_metric_time_inc` tối ưu truy vấn phân tích/báo cáo quy mô lớn (giảm CPU/IO qua Columnstore Segment Reads).
 - **Kiến trúc chịu tải & mở rộng (Design to Scale)**:
   - Bảng snapshot O(1) `dbo.node_latest_metrics` + cập nhật `dbo.vw_latest_telemetry` giúp đọc trạng thái mới nhất tức thời không cần quét bảng lịch sử.
   - Phân vùng bảng `telemetry_metrics` theo tháng (`PF_TelemetryMonth` / `PS_TelemetryMonth`) và lưu trữ/xóa tức thời bằng `SWITCH PARTITION` (`dbo.usp_purge_telemetry_partition`).
   - Batch telemetry ingest (`POST /telemetry/batch`, BFF `/api/telemetry/batch`, `usp_record_telemetry_batch` qua `OPENJSON`, collector `USE_BATCH=1` tự fallback `404/405`).
   - Phân trang phía server (`OFFSET...FETCH` với `limit/offset` và bộ lọc `node_id`/`rack_id` trên `usp_list_nodes_latest`, `usp_list_alerts`, `usp_list_tickets`, `usp_list_audit_logs`).
-  - Tách tài khoản ứng dụng quyền tối thiểu `ar_imms_app` (`database/23_least_privilege_login.sql`) và kiểm chứng benchmark 1.000.060 dòng (`database/24_scale_benchmark_1m.sql`).
+  - Tách tài khoản ứng dụng quyền tối thiểu `ar_imms_app` (`database/migrations/23_least_privilege_login.sql`) và benchmark quy mô lớn (`database/benchmarks/24_scale_benchmark_1m.sql`); số liệu benchmark chỉ có giá trị trong môi trường đã ghi nhận.
   - Tối ưu UI: tab-aware lazy polling, SSE debounce `1500ms`, lưu phiên làm việc `sessionStorage`, phân trang `25` mục/trang và xuất báo cáo CSV (UTF-8 BOM).
 
 ### Won't — ngoài phạm vi phiên bản này

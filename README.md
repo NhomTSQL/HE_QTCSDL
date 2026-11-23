@@ -1,142 +1,200 @@
-# AR-IMMS
+# AR-IMMS — Infrastructure Monitoring & Maintenance System
 
-Hệ thống giám sát và bảo trì hạ tầng Data Center (Mini Data Center testbed).
-Kiến trúc: **SQL Server → Flask REST API → Next.js dashboard**, collector gửi telemetry qua HTTP.
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)
+![Flask](https://img.shields.io/badge/Backend-Flask-000000)
+![Next.js](https://img.shields.io/badge/Web-Next.js-000000)
+![SQL Server](https://img.shields.io/badge/Database-SQL%20Server%20Developer-CC2927)
 
-## Cài đặt và chạy
+AR-IMMS là hệ thống giám sát và bảo trì hạ tầng Data Center thử nghiệm. Hệ thống quản lý Digital Twin theo mô hình:
 
-Hướng dẫn Windows thống nhất cho nhóm — Docker Desktop, SQL Server Developer,
-Microsoft ODBC Driver 18, cấu hình `.env` và URL-encode mật khẩu — nằm tại
-[docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md). Thực hiện trên ít nhất hai máy
-độc lập và ghi lại kết quả kiểm tra `/health` tại cuối tài liệu.
+```text
+Site → Room → Rack → Node → Container
+```
 
-Tóm tắt: tạo `.env` riêng trên mỗi máy từ [.env.example](.env.example), khởi động
-SQL Server bằng `docker compose up -d sqlserver`, tạo database/chạy script theo
-hướng dẫn, cài dependencies rồi khởi động Flask. Xác nhận
-`http://localhost:5000/health` trả về `{"status":"healthy","database":"connected"}`
-bằng `.\scripts\test-health.ps1`.
+Kiến trúc triển khai:
 
-Hướng dẫn chạy lại và kiểm thử script database: [database/MIGRATION_GUIDE_SQLSERVER.md](database/MIGRATION_GUIDE_SQLSERVER.md).
-ERD, từ điển dữ liệu và phân tích chuẩn hóa: [docs/ERD-DATA-DICTIONARY.md](docs/ERD-DATA-DICTIONARY.md).
-Smoke test Compose cho SQL Server Agent, giới hạn RAM và backup bind mount:
-`.\scripts\test-compose.ps1`.
+```text
+Next.js dashboard/BFF → Flask REST API → Stored Procedures → SQL Server Developer
+Python collector ──────HTTP + X-API-Key────> Flask REST API
+```
 
-## Quy tắc dự án
+## Mục lục
 
-- Database triển khai là SQL Server Developer; không dùng PostgreSQL/SQLite thay thế.
-- Không commit `.env`, mật khẩu hoặc khóa bí mật. Mỗi máy dùng mật khẩu SQL Server riêng.
-- Backend chỉ truy cập DB qua stored procedure. Next.js không kết nối SQL Server.
-- Hash mật khẩu trong dữ liệu seed chỉ là placeholder; đặt `AR_IMMS_DEV_PASSWORD` trong `.env` (tối thiểu 8 ký tự) để Flask tự động đồng bộ hash cho `admin`, `operator`, `technician` khi khởi động.
+1. [Tính năng](#tính-năng)
+2. [Cấu trúc dự án](#cấu-trúc-dự-án)
+3. [Yêu cầu](#yêu-cầu)
+4. [Cấu hình](#cấu-hình)
+5. [Khởi động SQL Server](#khởi-động-sql-server)
+6. [Chạy backend](#chạy-backend)
+7. [Chạy collector](#chạy-collector)
+8. [Chạy web](#chạy-web)
+9. [Kiểm tra](#kiểm-tra)
+10. [Tài liệu liên quan](#tài-liệu-liên-quan)
 
-## Các bước chạy
+## Tính năng chính
 
-### 1. SQL Server và script database
+### Digital Twin và telemetry
 
-Chờ container báo healthy. Mở SSMS hoặc Azure Data Studio, kết nối `localhost,1433` bằng `sa` và mật khẩu trong `.env`. Chạy theo thứ tự:
+- Quản lý 5 cấp `Site → Room → Rack → Node → Container`.
+- Collector thu thập host/container metrics, gửi đơn lẻ hoặc batch qua Flask.
+- SQL Server xử lý transaction, trạng thái Node, alert và lưu lịch sử telemetry.
 
-1. `database/01_create_database.sql`
-2. `database/02_create_tables.sql`
-3. `database/03_seed_data.sql`
-4. `database/04_procedures_triggers_views.sql`
-5. `database/05_retention_policy.sql`
-6. `database/08_dev_node_api_key.sql`
-7. `database/09_auth_procedures.sql`
-8. `database/10_agent_job_heartbeat.sql`
-9. `database/12_backup_recovery_model.sql`
-10. `database/13_backup_jobs.sql`
-11. `database/14_backup_cleanup.sql`
-12. `database/16_alert_dedupe.sql`
-13. `database/17_dashboard_api_procedures.sql`
-14. `database/19_security_and_core_fixes.sql`
-15. `database/20_extended_features_procedures.sql`
-16. `database/22_scale_architecture.sql` (snapshot O(1), phân vùng tháng, Columnstore index, batch SP, phân trang)
-17. `database/23_least_privilege_login.sql` (user ứng dụng quyền tối thiểu `ar_imms_app`)
-18. `database/25_password_recovery.sql` (phiên đăng nhập `auth_sessions`, MFA, khôi phục mật khẩu, bàn giao ca)
-19. `database/26_security_hardening.sql` (xác thực phiên, trigger thu hồi phiên khi đổi quyền/mật khẩu, BOLA guard)
+### Alert, ticket và bảo trì
 
-Các script kiểm chứng & benchmark (không làm hỏng dữ liệu):
-- `database/06_verify_seed_data.sql`
-- `database/07_test_normalized_schema.sql`
-- `database/18_test_retention_batch.sql`
-- `database/21_performance_benchmark.sql`
-- `database/24_scale_benchmark_1m.sql` (benchmark 1.000.060 dòng rollback sạch)
-- `database/15_restore_disaster_recovery.sql` (diễn tập khôi phục sang DB `AR_IMMS_RestoreTest`)
+- Alert threshold, chống cảnh báo trùng và heartbeat stale-node.
+- Ticket lifecycle cho Operator và Field Technician: `OPEN → IN_PROGRESS → PENDING_CLOSURE → CLOSED`.
+- Quản lý asset, warranty và maintenance history.
 
-Không chạy `database/00_reset.sql` trên database đang dùng.
+### Web, QR và analytics
 
-### 2. Backend Flask
+- Next.js dashboard/BFF song ngữ EN/VI, SSE và fallback polling.
+- Mobile Web QR/marker lookup với HUD telemetry; không phải ứng dụng AR native.
+- PUE, capacity, telemetry trend, báo cáo phân cấp và CSV UTF-8 BOM.
+
+### Security và vận hành database
+
+- JWT/session, RBAC, MFA/recovery, collector API key và audit bất biến.
+- SQL Server Agent, Full/Diff/Log backup, restore drill, partition, Columnstore và least-privilege login.
+
+## Cấu trúc dự án
+
+```text
+AR-IMMS/
+├── backend/       api/, core/, db/, tests/, tools/ và app.py entrypoint
+├── collector/     psutil collector, retry/buffer và container telemetry
+├── web/           Next.js UI/BFF
+├── database/      migrations/, tests/, benchmarks/, operations/
+├── scripts/       health/compose smoke checks
+├── docs/          kiến trúc, vận hành, test và user guide
+├── compose.yaml   SQL Server Developer + Agent cho local
+└── .env.example   mẫu biến môi trường, không chứa secret thật
+```
+
+## Yêu cầu
+
+- Windows 10/11 hoặc môi trường tương đương.
+- Docker Desktop và Docker Compose.
+- Python 3.11+ và Microsoft ODBC Driver 18 for SQL Server.
+- Node.js/npm cho dashboard.
+- Git.
+
+## Cấu hình
+
+PowerShell tại thư mục gốc:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Tối thiểu cần cấu hình `DATABASE_URL`, `JWT_SECRET_KEY` và các secret được khai báo trong `.env.example`. Đặt mật khẩu demo cục bộ qua `AR_IMMS_DEV_PASSWORD` (tối thiểu 8 ký tự). Không commit `.env`.
+
+Nếu mật khẩu có ký tự đặc biệt trong connection string, URL-encode giá trị đó. Xem [docs/SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md) để biết cấu hình Windows đầy đủ.
+
+## Khởi động SQL Server
+
+```powershell
+docker compose up -d sqlserver
+docker compose ps
+```
+
+Đợi service báo healthy, sau đó chạy các script theo [database/README.md](database/README.md). Không chạy reset trên database đang dùng.
+
+## Chạy backend
 
 ```powershell
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install -r backend/requirements.txt
-Copy-Item .env.example .env
-# sửa DATABASE_URL và JWT_SECRET_KEY trong .env
 py backend/app.py
 ```
 
-Flask nạp cấu hình từ `.env` tại thư mục gốc dự án. Kiểm tra:
+Kiểm tra:
 
 ```powershell
 Invoke-RestMethod http://localhost:5000/health
 ```
+
+Kết quả thành công:
 
 ```json
 {"status":"healthy","database":"connected"}
 ```
 
-### 3. Mật khẩu demo
+## Chạy collector
 
-Đặt biến `AR_IMMS_DEV_PASSWORD` (ít nhất 8 ký tự) trong file `.env` cục bộ trước khi chạy Flask:
+Trong terminal khác, sau khi database và backend đã sẵn sàng:
 
-```ini
-AR_IMMS_DEV_PASSWORD=your-local-dev-password
+```powershell
+py -m pip install -r collector/requirements.txt
+py collector/agent.py
 ```
 
-Khi `backend/app.py` khởi động (hoặc chạy test), Flask sẽ tự động kiểm tra và đồng bộ hash mật khẩu cho 3 tài khoản mẫu (`admin`, `operator`, `technician`) qua stored procedure `dbo.usp_set_user_password_hash`. Không commit `.env` hoặc mật khẩu.
+Cấu hình endpoint, API key, chu kỳ và batch theo [collector/.env.example](collector/.env.example) và hướng dẫn trong [docs/OPERATION-GUIDE.md](docs/OPERATION-GUIDE.md).
 
-### 4. Next.js dashboard
+## Chạy web
 
 ```powershell
 cd web
 Copy-Item .env.example .env.local
-# chỉnh BACKEND_URL nếu Flask không chạy ở localhost:5000
 npm ci
 npm run dev
 ```
 
-Mở `http://localhost:3000`. Next.js chỉ làm BFF; mọi truy cập SQL Server đi qua Flask stored-procedure API.
+Mở <http://localhost:3000>. Next.js chỉ gọi Flask BFF/API; không kết nối SQL Server.
 
-### 5. Kiểm tra nhanh API
+## Kiểm tra
+
+### Backend
 
 ```powershell
-Invoke-RestMethod http://localhost:5000/health
-Invoke-RestMethod http://localhost:3000/api/health
+py -m unittest discover -s backend/tests -t . -p "test_*.py" -v
 ```
 
-Luồng chức năng trên Web (`http://localhost:3000`, hỗ trợ chuyển đổi **EN / VI**, lưu phiên `sessionStorage`, SSE debounce & lazy polling theo tab):
-- **Overview & Digital Twin**: Cây hạ tầng 5 cấp (`Site → Room → Rack → Node → Container`), đăng ký node mới (cấp API key), cấu hình ngưỡng cảnh báo, xác nhận cảnh báo, phân trang server (`?limit=&offset=`) và phân công/xử lý/duyệt đóng ticket cho Operator và Field Technician. Collector hỗ trợ gửi batch (`POST /telemetry/batch`, `USE_BATCH=1`).
-- **Mobile Web AR/QR Scanner**: Quét camera/QR hoặc chọn marker testbed để phủ lớp HUD thông số trực tiếp, khởi động lại container có audit log và thao tác ticket tại hiện trường.
-- **Assets & Maintenance**: Thông số phần cứng, NIC, theo dõi hạn bảo hành và lịch sử bảo trì.
-- **Analytics & PUE**: Báo cáo PUE, năng lượng tiêu thụ, quy hoạch dung lượng theo Rack, tổng hợp 4 cấp kèm xuất **CSV UTF-8 BOM** và biểu đồ xu hướng telemetry.
-- **Admin & Audit**: Quản lý tài khoản RBAC, collector agents, phân trang và xuất **CSV UTF-8 BOM** nhật ký kiểm toán bất biến (`audit_logs`).
+### Collector
 
-## Quy ước làm việc nhóm
+```powershell
+py -m unittest discover -s collector/tests -v
+```
 
-| Mục | Quy ước | Ví dụ |
-|---|---|---|
-| Nhánh chính | `main` (không push trực tiếp) | |
-| Nhánh phát triển | `develop` (không push trực tiếp) | |
-| Nhánh làm việc | `feature/SCRUM-<số>-<mô-tả-ngắn>` | `feature/SCRUM-6-env-setup` |
-| Commit | `SCRUM-<số>: <việc đã làm>` | `SCRUM-6: add env screenshot` |
-| Pull Request | Tiêu đề `SCRUM-<số>: ...`, nhóm trưởng review rồi merge vào `develop` | |
+### Frontend
 
-## Quy trình mỗi lần làm việc
+```powershell
+cd web
+npm test
+npx tsc --noEmit
+npm run build
+```
 
-1. `git checkout develop` rồi `git pull`
-2. `git checkout -b feature/SCRUM-<số>-<mô-tả>`
-3. Code, rồi `git add .` và `git commit -m "SCRUM-<số>: ..."`
-4. `git push -u origin feature/SCRUM-<số>-<mô-tả>`
-5. Tạo Pull Request vào `develop`
+### Smoke checks
 
-Mục lục tài liệu, phạm vi MoSCoW và quy trình Kanban: [docs/README.md](docs/README.md).
+```powershell
+.\scripts\test-health.ps1
+.\scripts\test-compose.ps1
+```
+
+Các test cần SQL Server phải được ghi rõ là chưa kiểm chứng nếu service/schema chưa sẵn sàng; không đánh dấu PASS chỉ vì test import thành công.
+
+## Tài liệu liên quan
+
+| Nhu cầu | Tài liệu |
+|---|---|
+| Tìm đúng tài liệu theo nhiệm vụ | [DOCUMENTATION-GUIDE.md](docs/DOCUMENTATION-GUIDE.md) |
+| Cài đặt Windows/ODBC/Docker | [SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md) |
+| Kiến trúc module và luồng dữ liệu | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Database, migration và quyền | [DATABASE-SPECIFICATION.md](docs/DATABASE-SPECIFICATION.md), [database/README.md](database/README.md) |
+| Vận hành backup/restore/Agent | [OPERATION-GUIDE.md](docs/OPERATION-GUIDE.md), [BACKUP-TEST-CASES.md](docs/BACKUP-TEST-CASES.md) |
+| Kế hoạch kiểm thử | [TEST-PLAN-AND-REPORT.md](docs/TEST-PLAN-AND-REPORT.md) |
+| Kịch bản demo/vấn đáp | [DEMO.md](docs/DEMO.md) |
+| Hướng dẫn người dùng | [USER-MANUAL.md](docs/USER-MANUAL.md) |
+| Phạm vi và trạng thái | [SCOPE-MOSCOW.md](docs/SCOPE-MOSCOW.md), [STATUS.md](docs/STATUS.md) |
+
+- [Mục lục tài liệu](docs/README.md)
+- [Kiến trúc](docs/ARCHITECTURE.md)
+- [Đặc tả database](docs/DATABASE-SPECIFICATION.md)
+- [Hướng dẫn vận hành](docs/OPERATION-GUIDE.md)
+- [Kế hoạch và báo cáo test](docs/TEST-PLAN-AND-REPORT.md)
+- [Hướng dẫn người dùng](docs/USER-MANUAL.md)
+- [Cài đặt Windows](docs/SETUP-WINDOWS.md)
+- [Phạm vi MoSCoW](docs/SCOPE-MOSCOW.md)
+- [Trạng thái có bằng chứng](docs/STATUS.md)
+
