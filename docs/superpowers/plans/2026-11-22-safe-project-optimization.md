@@ -54,31 +54,33 @@
 **Files:**
 - Create: `backend/db_gateway.py`
 - Modify: `backend/app.py`
+- Modify: `backend/auth.py`
 - Modify: `backend/dashboard_api.py`
-- Test: `backend/test_db_gateway.py`
+- Test: existing `backend/test_*.py` plus one focused test if a new behavior is introduced.
 
 **Interfaces:**
 - Produces `execute_procedure(statement: str, params: dict | None = None)` and `rows(statement: str, params: dict | None = None)` wrappers using the existing `db.session`; no SQL business logic is added.
 
-- [x] **Step 1: Identify duplicated procedure execution and row mapping.**
-- [x] **Step 2: Write gateway tests, observe missing-module failure, then add the minimal helpers.**
-- [x] **Step 3: Migrate the shared row mapping helper and collector-agent authentication call; preserve SQL and transaction boundaries.**
-- [x] **Step 4: Run focused gateway tests and compile check.**
+- [ ] **Step 1: Identify duplicated procedure execution, row mapping, rollback, and error translation patterns.**
+- [ ] **Step 2: Add the smallest gateway helpers with the exact existing transaction behavior.**
+- [ ] **Step 3: Migrate only duplicated call sites that preserve identical SQL statements and parameters.**
+- [ ] **Step 4: Run backend unittest discovery and compare route-level behavior.**
 
 ### Task 3: Separate application configuration from Flask route registration
 
 **Files:**
 - Create: `backend/config.py`
 - Modify: `backend/app.py`
-- Test: `backend/test_config.py`
+- Modify: `backend/auth.py` only if configuration access is duplicated.
+- Test: existing backend tests.
 
 **Interfaces:**
-- Produces `load_database_config()` and keeps `create_app()` as the public application factory.
+- Produces `load_database_config()` and `configure_app(app)` with no API behavior changes; `create_app()` remains the public application factory.
 
-- [x] **Step 1: Test missing `DATABASE_URL` and preserved SQLAlchemy pool options.**
-- [x] **Step 2: Move environment/configuration parsing into `config.py`.**
-- [x] **Step 3: Keep blueprint and route registration behavior unchanged.**
-- [x] **Step 4: Run focused tests; full suite cannot connect to SQL Server at localhost:11433.**
+- [ ] **Step 1: Add tests for missing `DATABASE_URL` and preserved SQLAlchemy pool options.**
+- [ ] **Step 2: Move only environment/configuration parsing into `config.py`.**
+- [ ] **Step 3: Keep route definitions and blueprint registration behavior unchanged.**
+- [ ] **Step 4: Run all backend tests and the health script where SQL Server is available.**
 
 ### Task 4: Add clean structural documentation and verification checklist
 
@@ -91,20 +93,20 @@
 - Modify: `docs/README.md`
 
 **Interfaces:**
-- Produces linked documentation describing the actual SQL Server implementation.
+- Produces linked documentation modeled on the sample project but describing the actual SQL Server implementation.
 
-- [x] **Step 1: Document actual request/data flows and module responsibilities.**
-- [x] **Step 2: Document SQL Server layers, script groups, operational safety, and existing design references.**
-- [x] **Step 3: Document reproducible tests and qualify environment-dependent checks.**
-- [x] **Step 4: Document current role-based user workflows without inventing new features.**
-- [ ] **Step 5: Verify every cross-document link and correct paths.**
+- [ ] **Step 1: Document actual request/data flows and module responsibilities.**
+- [ ] **Step 2: Document SQL Server schema layers, stored procedure boundary, backup/restore, jobs, partitioning, and permissions.**
+- [ ] **Step 3: Document reproducible test commands and mark unavailable environment-dependent checks as pending rather than passing.**
+- [ ] **Step 4: Document role-based user workflows without inventing features outside the current API/UI.**
+- [ ] **Step 5: Verify all cross-document links.**
 
 ### Task 5: Final verification and cleanup review
 
 **Files:**
 - Modify only files proven necessary by verification.
 
-- [ ] **Step 1: Run backend unit tests; separate SQL Server-dependent errors from isolated passes.**
-- [ ] **Step 2: Run collector tests and frontend type/test/build checks when available.**
+- [ ] **Step 1: Run `py -m unittest discover -s backend -p "test_*.py"`.**
+- [ ] **Step 2: Run collector tests and frontend type/test/build checks when dependencies and services are available.**
 - [ ] **Step 3: Run `git diff --check` and inspect changed files for secrets, stale paths, and accidental API changes.**
 - [ ] **Step 4: Report completed, skipped, and environment-dependent checks separately.**
