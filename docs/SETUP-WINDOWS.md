@@ -115,30 +115,11 @@ Kết nối bằng SSMS tới `localhost,1433`,
 chọn SQL Server Authentication, đăng nhập `sa` với mật khẩu trong `.env`; nếu
 SSMS hỏi về mã hóa/chứng chỉ cho máy local, chọn tin cậy server certificate.
 
-Mở và thực thi lần lượt các script trong SSMS:
-
-1. `database/01_create_database.sql`
-2. `database/02_create_tables.sql`
-3. `database/03_seed_data.sql`
-4. `database/04_procedures_triggers_views.sql`
-5. `database/05_retention_policy.sql`
-6. `database/08_dev_node_api_key.sql`
-7. `database/09_auth_procedures.sql`
-8. `database/10_agent_job_heartbeat.sql`
-9. `database/12_backup_recovery_model.sql`
-10. `database/13_backup_jobs.sql`
-11. `database/14_backup_cleanup.sql`
-12. `database/16_alert_dedupe.sql`
-13. `database/17_dashboard_api_procedures.sql`
-14. `database/19_security_and_core_fixes.sql`
-15. `database/20_extended_features_procedures.sql`
-16. `database/22_scale_architecture.sql`
-17. `database/23_least_privilege_login.sql`
-18. `database/25_password_recovery.sql`
-19. `database/26_security_hardening.sql`
-
-Chạy lại script idempotent để xác nhận triển khai; không chạy `database/00_reset.sql`
-trên database đang dùng. Sau khi chạy đủ các script trên và đặt `AR_IMMS_DEV_PASSWORD`
+Mở SSMS và thực thi các migration theo thứ tự duy nhất trong
+[database/MIGRATION_GUIDE_SQLSERVER.md](../database/MIGRATION_GUIDE_SQLSERVER.md).
+Chỉ chạy script trong `database/migrations/`; verifier, benchmark và operations
+được phân loại riêng tại [database/README.md](../database/README.md). Không chạy
+`database/operations/00_reset.sql` trên database đang dùng. Sau khi chạy đủ các script trên và đặt `AR_IMMS_DEV_PASSWORD`
 trong `.env`, mật khẩu demo của `admin`, `operator`, `technician` sẽ tự đồng bộ khi Flask khởi động.
 
 ## 4. Cài và khởi động Flask
@@ -213,8 +194,10 @@ cá nhân.
 
 | Máy | Người kiểm thử | Commit đã thử | Kết quả `test-health.ps1` | Thời điểm |
 |---|---|---|---|---|
-| Máy 1 | minhnbk01 | `8fb86ed` (+ bản cập nhật P0–P2) | PASS (`status=healthy`, `database=connected`; Flask mới trên cổng test & `demo_auth.py` 3 vai trò OK) | 2026-11-20 |
-| Máy 2 | Chưa ghi nhận | Chưa ghi nhận | Chưa chạy trong phiên này | — |
+| Máy 1 | Đã ghi nhận trong kết quả nhóm | `8fb86ed` (+ bản cập nhật P0–P2) | PASS lịch sử (`healthy`, `database=connected`; Flask và `demo_auth.py` 3 vai trò OK) | 2026-11-20 |
+| Máy 2 | Chưa ghi nhận | Chưa ghi nhận | Chưa chạy/ghi nhận | — |
+
+Kết quả Máy 1 là bằng chứng lịch sử tại commit/thời điểm nêu trên, không xác nhận trạng thái hiện tại hoặc cấu trúc sau các thay đổi mới. Thay thông tin người kiểm thử theo người thực hiện thực tế khi chạy lại; không ghi tên cá nhân nếu không cần cho báo cáo.
 
 ## Xử lý sự cố thường gặp
 
@@ -238,3 +221,4 @@ cá nhân.
 - **Backup không thấy hoặc không ghi được**: bảo đảm thư mục `backups/` nằm cạnh
   `compose.yaml`, Docker Desktop có quyền truy cập repository, và T-SQL dùng
   đường dẫn trong container `/var/opt/mssql/backups`.
+

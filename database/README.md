@@ -1,69 +1,46 @@
 # Database SQL Server
 
-Thư mục này chứa toàn bộ T-SQL của AR-IMMS. Database triển khai và bản nộp là **SQL Server Developer**.
+Thư mục này chứa T-SQL của AR-IMMS. SQL Server Developer là database duy nhất của bản nộp.
 
 ## Cấu trúc
 
 ```text
 database/
-├── canonical/           # 19 script chạy lần đầu để thiết lập database
-├── verification/
-│   ├── tests/           # 4 script kiểm thử schema, dữ liệu, job, retention
-│   ├── benchmarks/      # 2 script đo hiệu năng (không chạy trong cài đặt)
-│   └── operations/      # reset dev và restore drill (không chạy tự động)
-├── legacy/              # 27 script gốc giữ lại làm lịch sử và nâng cấp database đã cài
+├── migrations/   # triển khai theo thứ tự số hiện hữu
+├── tests/        # verifier và test nghiệp vụ/schema
+├── benchmarks/   # đo hiệu năng/scale, không phải migration
+├── operations/   # reset dev và restore drill
 ├── README.md
 └── MIGRATION_GUIDE_SQLSERVER.md
 ```
 
-## Cài đặt database
+## Chạy triển khai
 
-Chạy cho từng lần cài mới trên SQL Server Developer:
+Chạy [MIGRATION_GUIDE_SQLSERVER.md](MIGRATION_GUIDE_SQLSERVER.md). Migration chỉ gồm `database/migrations/`; không chạy test, benchmark hoặc operations như migration.
 
-```powershell
-# Đối với container SQL Server hiện đang chạy
-.\scripts\setup-database.ps1 -Database AR_IMMS -Server localhost,1433 -Credential (Get-Credential)
-```
+## Phân loại file
 
-Hoặc dùng kiểm tra khô mà không chạy SQL:
+| Nhóm | File |
+|---|---|
+| Migration | `migrations/01`–`05`, `08`–`10`, `12`–`14`, `16`–`17`, `19`–`20`, `22`–`23`, `25`–`26` |
+| Test | `tests/06`, `07`, `11`, `18` |
+| Benchmark | `benchmarks/21`, `24` |
+| Operations | `operations/00_reset.sql`, `operations/15_restore_disaster_recovery.sql` |
 
-```powershell
-.\scripts\setup-database.ps1 -DryRun
-```
-
-### Thứ tự deploy
-
-`database/canonical/` chứa đúng thứ tự an toàn:
-
-1. `01_create_database.sql`
-2. `02_create_tables.sql`
-3. `03_seed_data.sql`
-4. `04_procedures_triggers_views.sql`
-5. `05_retention_policy.sql`
-6. `08_dev_node_api_key.sql`
-7. `09_auth_procedures.sql`
-8. `10_agent_job_heartbeat.sql`
-9. `12_backup_recovery_model.sql`
-10. `13_backup_jobs.sql`
-11. `14_backup_cleanup.sql`
-12. `16_alert_dedupe.sql`
-13. `17_dashboard_api_procedures.sql`
-14. `19_security_and_core_fixes.sql`
-15. `20_extended_features_procedures.sql`
-16. `22_scale_architecture.sql`
-17. `23_least_privilege_login.sql`
-18. `25_password_recovery.sql`
-19. `26_security_hardening.sql`
-
-Script reset, kiểm thử, benchmark và restore drill **không chạy trong cài đặt chuẩn** và nằm ở `database/verification/`.
+Tên file và số thứ tự được giữ nguyên để không phá migration contract.
 
 ## An toàn
 
-- Không chạy `database/verification/operations/00_reset.sql` trên database đang dùng.
-- Backup có thể chứa dữ liệu nhạy cảm; không commit file `.bak`, `.trn`.
-- Nếu migration/lỗi SQL, dừng và xử lý nguyên nhân; không bỏ qua bước.
+- Không chạy `operations/00_reset.sql` trên database đang dùng.
+- Không chạy benchmark hoặc restore drill trên môi trường production/database dùng chung.
+- Không commit `.bak`, `.trn` hoặc dữ liệu backup thật.
+- Nếu migration fail, dừng và xử lý lỗi SQL; không bỏ qua bước.
+- Login ứng dụng quyền tối thiểu được tạo bởi migration `23_least_privilege_login.sql`.
 
-## Lịch sử
+## Tài liệu liên quan
 
-Tất cả 27 script gốc giữ nguyên nội dung trong `database/legacy/` để đối chiếu hoặc nâng cấp database đã cài.
+- [Migration guide](MIGRATION_GUIDE_SQLSERVER.md)
+- [ERD và từ điển dữ liệu](../docs/ERD-DATA-DICTIONARY.md)
+- [Quy ước T-SQL](../docs/CONVENTIONS.md)
+- [Test backup/restore](../docs/BACKUP-TEST-CASES.md)
 

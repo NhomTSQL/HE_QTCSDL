@@ -1,10 +1,10 @@
 # ERD v1 và từ điển dữ liệu AR-IMMS
 
 Phiên bản này mô tả schema SQL Server đầy đủ gồm **32 bảng**: **25 bảng nghiệp vụ lõi**
-trong `database/02_create_tables.sql` (cây Digital Twin `Site → Room → Rack → Node → Container`,
+trong `database/migrations/02_create_tables.sql` (cây Digital Twin `Site → Room → Rack → Node → Container`,
 RBAC, telemetry/cảnh báo, ticket bảo trì, tài sản và audit), **2 bảng kiến trúc mở rộng**
-trong `database/22_scale_architecture.sql` (`node_latest_metrics`, `telemetry_metrics_archive_staging`),
-và **5 bảng bảo mật, phiên đăng nhập & bàn giao ca** trong `database/25_password_recovery.sql`
+trong `database/migrations/22_scale_architecture.sql` (`node_latest_metrics`, `telemetry_metrics_archive_staging`),
+và **5 bảng bảo mật, phiên đăng nhập & bàn giao ca** trong `database/migrations/25_password_recovery.sql`
 (`auth_sessions`, `account_access_requests`, `password_recovery_codes`, `mfa_backup_codes`, `shift_handover_notes`).
 
 ## ERD
@@ -134,14 +134,16 @@ Các cột thời gian có default dùng `SYSUTCDATETIME()` nếu không ghi ch�
 
 ## Kiểm thử và chạy lại
 
-1. Chạy `database/01_create_database.sql` đến `database/05_retention_policy.sql`.
-2. Chạy lại nhóm script 01–05 lần nữa để kiểm tra tính lặp an toàn; bước 02 sẽ
+1. Chạy các migration `01`–`05` trong `database/migrations/` theo thứ tự trong
+   [migration guide](../database/MIGRATION_GUIDE_SQLSERVER.md).
+2. Chạy lại nhóm migration 01–05 lần nữa để kiểm tra tính lặp an toàn; bước 02 sẽ
    chuyển các cột cũ sang quan hệ mới trong transaction và không xóa dữ liệu nếu
    gặp JSON không ánh xạ được.
-3. Chạy `database/06_verify_seed_data.sql`: kỳ vọng thông báo `PASS` và không
+3. Chạy `database/tests/06_verify_seed_data.sql`: kỳ vọng thông báo `PASS` và không
    có lỗi.
-4. Chạy `database/07_test_normalized_schema.sql`: kỳ vọng ba thông báo `PASS`;
+4. Chạy `database/tests/07_test_normalized_schema.sql`: kỳ vọng ba thông báo `PASS`;
    số đo hợp lệ tạo cảnh báo, đơn vị sai bị từ chối và FK từ chối metric không tồn tại.
 
 Kiểm thử đầy đủ yêu cầu SQL Server Developer/SQL Server 2016+ với compatibility
 level 130 trở lên (hỗ trợ `OPENJSON`).
+
