@@ -35,8 +35,8 @@ di chuyển object trong một thay đổi không liên quan.
 ## Script database
 
 - Repo giữ nguyên số thứ tự các script, hiện được phân nhóm trong
-  `database/migrations/`, `database/tests/`, `database/benchmarks/` và
-  `database/operations/`. Migration mới tiếp tục chuỗi số hiện tại và được thêm
+  `database/canonical/`, `database/verification/tests/`, `database/verification/benchmarks/` và
+  `database/verification/operations/`. Migration mới tiếp tục chuỗi số hiện tại và được thêm
   vào đúng nhóm; không tạo chuỗi migration song song hoặc đổi số file cũ.
 - Script thiết lập/schema/object nên chạy lại an toàn khi có thể; dùng
   `CREATE OR ALTER` cho procedure, function, view và trigger khi SQL Server

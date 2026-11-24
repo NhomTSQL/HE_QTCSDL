@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from backend.app import create_app, db
 
-DEMO_KEY = "demo-node-key-001"  # khop voi database/migrations/08_dev_node_api_key.sql
+DEMO_KEY = "demo-node-key-001"  # khop voi database/canonical/08_dev_node_api_key.sql
 
 
 class TelemetryApiTest(unittest.TestCase):
@@ -22,7 +22,7 @@ class TelemetryApiTest(unittest.TestCase):
                 )
             ).mappings().first()
             if agent is None:
-                raise RuntimeError("Chua co agent demo. Chay database/migrations/08_dev_node_api_key.sql truoc.")
+                raise RuntimeError("Chua co agent demo. Chay database/canonical/08_dev_node_api_key.sql truoc.")
             cls._orig_agent = dict(agent)
             cls.node_id = agent["node_id"]
             demo_hash = hashlib.sha256(DEMO_KEY.encode("utf-8")).hexdigest().lower()

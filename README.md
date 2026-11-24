@@ -63,7 +63,7 @@ AR-IMMS/
 ├── backend/       api/, core/, db/, tests/, tools/ và app.py entrypoint
 ├── collector/     psutil collector, retry/buffer và container telemetry
 ├── web/           Next.js UI/BFF
-├── database/      migrations/, tests/, benchmarks/, operations/
+├── database/      canonical/, legacy/, verification/ (SQL Server scripts)
 ├── scripts/       health/compose smoke checks
 ├── docs/          kiến trúc, vận hành, test và user guide
 ├── compose.yaml   SQL Server Developer + Agent cho local

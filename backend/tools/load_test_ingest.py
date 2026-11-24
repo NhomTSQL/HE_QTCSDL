@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 
 API_URL = os.environ.get("LOAD_TEST_URL", "http://localhost:5000/telemetry")
-API_KEY = os.environ.get("LOAD_TEST_API_KEY", "demo-node-key-001")  # database/migrations/08_dev_node_api_key.sql
+API_KEY = os.environ.get("LOAD_TEST_API_KEY", "demo-node-key-001")  # database/canonical/08_dev_node_api_key.sql
 HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 
 # Mỗi mức tải: (req/s mục tiêu, thời gian chạy giây)

@@ -55,13 +55,13 @@ Các mục dưới đây được mô tả là có trong source hiện tại; tr
 
 ### Could — mở rộng/Design to Scale
 
-- **Nonclustered Columnstore Index `NCCI_telemetry_analytics`** (`database/migrations/22_scale_architecture.sql`) kết hợp Covering Index `IX_telemetry_node_metric_time_inc` tối ưu truy vấn phân tích/báo cáo quy mô lớn (giảm CPU/IO qua Columnstore Segment Reads).
+- **Nonclustered Columnstore Index `NCCI_telemetry_analytics`** (`database/canonical/22_scale_architecture.sql`) kết hợp Covering Index `IX_telemetry_node_metric_time_inc` tối ưu truy vấn phân tích/báo cáo quy mô lớn (giảm CPU/IO qua Columnstore Segment Reads).
 - **Kiến trúc chịu tải & mở rộng (Design to Scale)**:
   - Bảng snapshot O(1) `dbo.node_latest_metrics` + cập nhật `dbo.vw_latest_telemetry` giúp đọc trạng thái mới nhất tức thời không cần quét bảng lịch sử.
   - Phân vùng bảng `telemetry_metrics` theo tháng (`PF_TelemetryMonth` / `PS_TelemetryMonth`) và lưu trữ/xóa tức thời bằng `SWITCH PARTITION` (`dbo.usp_purge_telemetry_partition`).
   - Batch telemetry ingest (`POST /telemetry/batch`, BFF `/api/telemetry/batch`, `usp_record_telemetry_batch` qua `OPENJSON`, collector `USE_BATCH=1` tự fallback `404/405`).
   - Phân trang phía server (`OFFSET...FETCH` với `limit/offset` và bộ lọc `node_id`/`rack_id` trên `usp_list_nodes_latest`, `usp_list_alerts`, `usp_list_tickets`, `usp_list_audit_logs`).
-  - Tách tài khoản ứng dụng quyền tối thiểu `ar_imms_app` (`database/migrations/23_least_privilege_login.sql`) và benchmark quy mô lớn (`database/benchmarks/24_scale_benchmark_1m.sql`); số liệu benchmark chỉ có giá trị trong môi trường đã ghi nhận.
+  - Tách tài khoản ứng dụng quyền tối thiểu `ar_imms_app` (`database/canonical/23_least_privilege_login.sql`) và benchmark quy mô lớn (`database/verification/benchmarks/24_scale_benchmark_1m.sql`); số liệu benchmark chỉ có giá trị trong môi trường đã ghi nhận.
   - Tối ưu UI: tab-aware lazy polling, SSE debounce `1500ms`, lưu phiên làm việc `sessionStorage`, phân trang `25` mục/trang và xuất báo cáo CSV (UTF-8 BOM).
 
 ### Won't — ngoài phạm vi phiên bản này

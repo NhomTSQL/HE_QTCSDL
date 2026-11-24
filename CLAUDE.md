@@ -30,7 +30,7 @@ Python collector ────────HTTP + X-API-Key──> Flask REST API
 - Procedure ghi dữ liệu phải có transaction boundary, `TRY...CATCH`, rollback phù hợp và lỗi có ý nghĩa.
 - Trigger phải xử lý nhiều dòng trong `inserted`/`deleted` và không gây recursion ngoài kiểm soát.
 - Script seed không chứa mật khẩu thật. Hash trong seed chỉ là placeholder.
-- Không chạy `database/operations/00_reset.sql` trên database đang sử dụng.
+- Không chạy `database/verification/operations/00_reset.sql` trên database đang sử dụng.
 - Thứ tự chạy chuẩn nằm tại [database/README.md](database/README.md) và [database/MIGRATION_GUIDE_SQLSERVER.md](database/MIGRATION_GUIDE_SQLSERVER.md). Không tạo chuỗi migration song song.
 
 ## 4. Quy tắc backend/API

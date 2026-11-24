@@ -19,16 +19,6 @@ node_modules/
 /backups/*.bak
 /backups/*.trn
 
-# Keep SQL scripts and database documentation under version control
-/database/*
-!/database/*.sql
-!/database/*.md
-!/database/
-
-
-*.pyc
-
-
 .vscode/settings.json
 
 test.*

@@ -5,7 +5,7 @@ Mục tiêu: chứng minh luồng `collector → Flask API → SQL Server`.
 ## Chuẩn bị
 
 - SQL Server Docker đang ở trạng thái `healthy`.
-- Đã chạy schema, seed và `database/migrations/08_dev_node_api_key.sql`.
+- Đã chạy schema, seed và `database/canonical/08_dev_node_api_key.sql`.
 - Đã cài dependency trong `backend/requirements.txt`.
 - Có `.env` cục bộ với `DATABASE_URL`.
 

@@ -1,10 +1,4 @@
-<#PSScriptInfo
-Version = 1.0
-GUID = $(guid)
-Description = "Runs AR-IMMS canonical SQL Server scripts in deployable order."
-#>
-
-[CmdletBinding(DefaultParameterSetName = 'Sqlcmd')]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [string]$Database = 'AR_IMMS',
@@ -14,10 +8,6 @@ param(
 
     [Parameter(Mandatory = $false)]
     [System.Management.Automation.PSCredential]$Credential,
-
-    [Parameter(Mandatory = $true)]
-    [ValidateSet('Sqlcmd','Invoke-Sqlcmd')]
-    [string]$Provider = 'Sqlcmd',
 
     [Parameter(Mandatory = $false)]
     [switch]$DryRun
@@ -50,10 +40,6 @@ $ScriptOrder = @(
 $ScriptRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\database\canonical')).Path
 $Errors = @()
 
-if (!$DryRun -and $Provider -eq 'Invoke-Sqlcmd' -and !$Credential) {
-    $Credential = Get-Credential -Message 'Enter SQL Server credentials'
-}
-
 if ($DryRun) {
     Write-Host 'DRY RUN - scripts that would execute:' -ForegroundColor Cyan
     foreach ($file in $ScriptOrder) {
@@ -72,45 +58,32 @@ foreach ($file in $ScriptOrder) {
 
     Write-Host ("[RUN] {0}" -f $file) -ForegroundColor Green
 
-    if ($Provider -eq 'Sqlcmd') {
-        $connection = "Server=$Server;Database=$Database"
-        if ($Credential) {
-            $result = & sqlcmd -S $Server -d $Database -U $Credential.UserName -P $Credential.GetNetworkCredential().Password -i "$path" -b
-        }
-        else {
-            $result = & sqlcmd -S $Server -d $Database -E -i "$path" -b
-        }
+    # The first script creates the database, so it must connect to master.
+    $targetDatabase = if ($file -eq '01_create_database.sql') { 'master' } else { $Database }
 
-        if ($LASTEXITCODE -ne 0) {
-            $Errors += $file
-            Write-Error "FAILED: $file"
-            break
+    if ($Credential) {
+        $previousSqlcmdPassword = $env:SQLCMDPASSWORD
+        try {
+            $env:SQLCMDPASSWORD = $Credential.GetNetworkCredential().Password
+            & sqlcmd -S $Server -d $targetDatabase -U $Credential.UserName -i "$path" -b
+        }
+        finally {
+            if ($null -eq $previousSqlcmdPassword) {
+                Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue
+            }
+            else {
+                $env:SQLCMDPASSWORD = $previousSqlcmdPassword
+            }
         }
     }
     else {
-        # PowerShell 5.1+ module provider; keeps credential handling inside SqlConnection.
-        $password = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Credential.Password))
+        & sqlcmd -S $Server -d $targetDatabase -E -i "$path" -b
+    }
 
-        $connectionString = "Server=$Server;Database=$Database;User Id=$($Credential.UserName);Password=$password;TrustServerCertificate=True;"
-
-        $sql = Get-Content -Path $path -Raw
-        try {
-            $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
-            $connection.Open()
-            $command = $connection.CreateCommand()
-            $command.CommandText = $sql
-            $command.CommandTimeout = 300
-            $command.ExecuteNonQuery() | Out-Null
-        }
-        catch {
-            $Errors += $file
-            Write-Error "FAILED: $file`n$($_.Exception.Message)"
-            break
-        }
-        finally {
-            if ($null -ne $connection) { $connection.Dispose() }
-        }
+    if ($LASTEXITCODE -ne 0) {
+        $Errors += $file
+        Write-Error "FAILED: $file"
+        break
     }
 }
 

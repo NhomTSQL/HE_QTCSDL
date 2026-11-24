@@ -10,7 +10,7 @@ Mục tiêu: báo cáo tốc độ ghi khi gửi vài chục dòng/giây, không
 | SQL Server | Enterprise Developer 64-bit, instance `SQLDEV` trên Windows |
 | Backend | Flask (`flask --app app run --port 5000`), **debug tắt**, server phát triển 1 tiến trình |
 | Python | 3.9, thư viện `requests` cho client |
-| Dữ liệu | Agent demo `demo-node-key-001` (`database/migrations/08_dev_node_api_key.sql`) |
+| Dữ liệu | Agent demo `demo-node-key-001` (`database/canonical/08_dev_node_api_key.sql`) |
 | Cấu hình client | 20 luồng song song, giữ nhịp theo từng mức tải |
 
 Mỗi request ghi 1 chỉ số vào `telemetry_metrics` qua `usp_record_telemetry`.

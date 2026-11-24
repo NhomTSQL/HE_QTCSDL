@@ -117,9 +117,9 @@ SSMS hỏi về mã hóa/chứng chỉ cho máy local, chọn tin cậy server c
 
 Mở SSMS và thực thi các migration theo thứ tự duy nhất trong
 [database/MIGRATION_GUIDE_SQLSERVER.md](../database/MIGRATION_GUIDE_SQLSERVER.md).
-Chỉ chạy script trong `database/migrations/`; verifier, benchmark và operations
+Chỉ chạy script trong `database/canonical/`; verifier, benchmark và operations
 được phân loại riêng tại [database/README.md](../database/README.md). Không chạy
-`database/operations/00_reset.sql` trên database đang dùng. Sau khi chạy đủ các script trên và đặt `AR_IMMS_DEV_PASSWORD`
+`database/verification/operations/00_reset.sql` trên database đang dùng. Sau khi chạy đủ các script trên và đặt `AR_IMMS_DEV_PASSWORD`
 trong `.env`, mật khẩu demo của `admin`, `operator`, `technician` sẽ tự đồng bộ khi Flask khởi động.
 
 ## 4. Cài và khởi động Flask
